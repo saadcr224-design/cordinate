@@ -18,6 +18,19 @@ Type equations, points, vectors or just `x`, `y`, `z`, and see them drawn in a r
   - `A(3, 4, 5)` → "To reach it, start at the centre (0, 0, 0) and go 3 to the right, 4 up and 5 towards you."
 - Distances between points and angles between vectors, also in plain English.
 
+## Install it as an app (PC, Android, iPhone)
+
+The website is a Progressive Web App, so it can be installed and used like a normal app:
+
+- **PC (Chrome or Edge)**: open the site and click **⬇️ Install app** in the sidebar, or the install icon at the
+  right of the address bar.
+- **Android (Chrome)**: tap **⬇️ Install app**, or the browser menu **⋮ → Install app**.
+- **iPhone / iPad (Safari)**: tap the **Share** button, then **Add to Home Screen**.
+
+The installed app opens in its own window with its own icon, and starts instantly. It needs the internet to
+draw new graphs; when offline it opens and says so. On phones, the graph is locked while you scroll the page:
+tap it to turn or zoom it, then tap **✓ Done**.
+
 ## Input syntax (one item per line)
 
 | You type | Meaning |
@@ -98,7 +111,10 @@ python -m pytest
 
 ```
 app.py                     web app (Flask) — the entry point for Vercel and other hosts
-web/index.html             the web page: Plotly.js graphs, KaTeX maths
+web/index.html             the web page (Plotly.js graphs)
+web/manifest.webmanifest   app name, icons and colours, so the site can be installed
+web/sw.js                  service worker: the installed app opens instantly, even offline
+web/icons/                 app icons (made by scripts/make_icons.py)
 streamlit_app.py           Streamlit version of the same app
 coordinate/parser.py       turns text into equations, points, vectors and values (SymPy)
 coordinate/analysis.py     classifies equations and explains them in plain English
