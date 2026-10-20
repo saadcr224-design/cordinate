@@ -1,4 +1,4 @@
-"""Classify equations (line, circle, plane, sphere, ...) and compute their key facts."""
+"""Classify equations (line, circle, plane, sphere, ...) and explain them in plain English."""
 
 from __future__ import annotations
 
@@ -9,28 +9,27 @@ import sympy as sp
 from .parser import Equation, x, y, z
 
 
+PLANE = "Plane (flat surface)"
+
+
 @dataclass
 class Analysis:
-    kind: str                       # e.g. "Line", "Plane", "Sphere", "Surface"
+    kind: str                       # e.g. "Straight line", "Plane (flat surface)", "Sphere (ball)"
     implicit: sp.Expr               # F such that the graph is F = 0
     explicit: sp.Expr | None = None  # f such that y = f(x) (2D) or z = f(x, y) (3D)
     explicit_var: sp.Symbol | None = None
-    facts: list[tuple[str, str]] = field(default_factory=list)  # (label, LaTeX)
+    sentences: list[str] = field(default_factory=list)  # easy English explanation for students
 
 
-def _num(value: sp.Expr) -> str:
-    value = sp.nsimplify(value, rational=True) if value.is_number else value
-    return sp.latex(value)
+def num(value) -> str:
+    """A number as students write it: whole numbers stay whole, others get at most 2 decimals."""
+    value = round(float(value), 2)
+    return f"{value:g}" if value != 0 else "0"
 
 
-def _approx(value: sp.Expr) -> str:
-    """Exact value, followed by a decimal approximation when it is not a whole number."""
-    value = sp.nsimplify(value)
-    return _num(value) if value.is_Integer else f"{_num(value)} \\approx {float(value):.4g}"
-
-
-def _eq_latex(lhs: sp.Expr, rhs: sp.Expr) -> str:
-    return f"{sp.latex(lhs)} = {sp.latex(rhs)}"
+def plain(expr: sp.Expr) -> str:
+    """An expression written the way it is typed, e.g. x^2 - 4x + 3."""
+    return sp.sstr(expr).replace("**", "^").replace("*", "")
 
 
 def _polynomial(expr: sp.Expr, gens: tuple[sp.Symbol, ...]) -> sp.Poly | None:
@@ -57,8 +56,8 @@ def _quadric_sphere(poly: sp.Poly, gens: tuple[sp.Symbol, ...]):
     return center, sp.nsimplify(r2)
 
 
-def _real_roots(f: sp.Expr) -> list[str]:
-    """LaTeX for the real roots of f(x) = 0 — exact up to degree 4, numeric above, none if not a polynomial.
+def _real_roots(f: sp.Expr) -> list[float]:
+    """Real roots of f(x) = 0 — exact up to degree 4, numeric above, none if f is not a polynomial.
 
     General ``sp.solve`` is avoided: it can fail or run for minutes on inputs like sin(x) + x.
     """
@@ -66,15 +65,23 @@ def _real_roots(f: sp.Expr) -> list[str]:
     if poly is None or poly.degree() < 1 or poly.free_symbols - {x}:
         return []
     if poly.degree() <= 4:
-        roots = [r for r in sp.roots(poly, filter="R")]
+        roots = [float(r) for r in sp.roots(poly, filter="R")]
         if roots or poly.degree() <= 2:
-            return [_num(r) for r in sorted(roots, key=float)]
-    return sorted({f"{complex(r).real:.4g}" for r in poly.nroots() if abs(complex(r).imag) < 1e-9}, key=float)
+            return sorted(roots)
+    return sorted({round(complex(r).real, 6) for r in poly.nroots() if abs(complex(r).imag) < 1e-9})
 
 
 def _check_has_variables(implicit: sp.Expr) -> None:
     if not implicit.free_symbols:
         raise ValueError("is always true" if implicit == 0 else "has no solution — nothing to draw")
+
+
+def _join(parts: list[str]) -> str:
+    return parts[0] if len(parts) == 1 else ", ".join(parts[:-1]) + " and " + parts[-1]
+
+
+def _point(values) -> str:
+    return "(" + ", ".join(num(v) for v in values) + ")"
 
 
 def analyse_2d(eq: Equation) -> Analysis:
@@ -90,6 +97,7 @@ def analyse_2d(eq: Equation) -> Analysis:
 
     info = Analysis(kind="Curve", implicit=implicit)
     poly = _polynomial(implicit, (x, y))
+    say = info.sentences.append
 
     # Explicit form y = f(x) when F is linear in y.
     if sp.degree(implicit, y) == 1:
@@ -104,43 +112,70 @@ def analyse_2d(eq: Equation) -> Analysis:
     if poly is not None and poly.total_degree() == 1:
         a, b, c = poly.coeff_monomial(x), poly.coeff_monomial(y), poly.coeff_monomial(1)
         info.kind = "Straight line"
-        info.facts.append(("Standard form", _eq_latex(a * x + b * y, -c)))
-        if b != 0:
-            m, k = -a / b, -c / b
-            info.facts.append(("Slope  m", _num(m)))
-            info.facts.append(("y-intercept", f"(0,\\ {_num(k)})"))
-            info.facts.append(("Angle with x-axis", f"{float(sp.deg(sp.atan(m))):.2f}^\\circ"))
+        if b == 0:
+            say("This is a straight line that goes straight up and down (a vertical line).")
+            say(f"Every point on it has x = {num(-c / a)}.")
+        elif a == 0:
+            say("This is a straight line that goes straight left to right (a horizontal line).")
+            say(f"Every point on it has y = {num(-c / b)}.")
         else:
-            info.facts.append(("Slope  m", r"\text{undefined (vertical line)}"))
-        if a != 0:
-            info.facts.append(("x-intercept", f"({_num(-c / a)},\\ 0)"))
-        info.facts.append(("Distance from origin", _approx(sp.Abs(c) / sp.sqrt(a ** 2 + b ** 2))))
+            m = -a / b
+            say("This is a straight line.")
+            if c == 0:
+                say("It passes through the centre point (0, 0).")
+            else:
+                say(f"It crosses the X axis at x = {num(-c / a)} and the Y axis at y = {num(-c / b)}.")
+            say(f"Slope {num(m)}: for every 1 step to the right, the line goes "
+                f"{'up' if m > 0 else 'down'} {num(abs(m))}.")
     elif poly is not None and (circle := _quadric_sphere(poly, (x, y))):
         center, r2 = circle
         if r2 > 0:
             info.kind = "Circle"
-            info.facts.append(("Centre", f"({_num(center[0])},\\ {_num(center[1])})"))
-            info.facts.append(("Radius", _num(sp.sqrt(r2))))
-            info.facts.append(("Area", _approx(sp.pi * r2)))
-            info.facts.append(("Circumference", _approx(2 * sp.pi * sp.sqrt(r2))))
+            say("This is a circle.")
+            say(f"Its centre is at {_point(center)} and its radius (the distance from the centre "
+                f"to the edge) is {num(sp.sqrt(r2))}.")
+        elif r2 == 0:
+            info.kind = "Single point"
+            say(f"Only one point makes this true: {_point(center)}.")
         else:
-            info.kind = "Empty set / single point"
-    elif poly is not None and poly.total_degree() == 2 and info.explicit_var == y:
-        info.kind = "Parabola"
+            info.kind = "Nothing to draw"
+            say("No point makes this equation true, so there is nothing to draw.")
+    elif info.explicit_var == y and (p := _polynomial(info.explicit, (x,))) is not None and p.degree() == 2:
+        info.kind = "Parabola (U shape)"
         f = info.explicit
-        xv = sp.solve(sp.diff(f, x), x)
-        if xv:
-            info.facts.append(("Vertex", f"({_num(xv[0])},\\ {_num(f.subs(x, xv[0]))})"))
-    elif poly is not None and poly.total_degree() == 2:
-        info.kind = "Conic section"
+        vx = sp.solve(sp.diff(f, x), x)[0]
+        opens_up = p.LC() > 0
+        say("This is a U-shaped curve (a parabola).")
+        say(f"It opens {'upwards' if opens_up else 'downwards'}. Its {'lowest' if opens_up else 'highest'} "
+            f"point is at {_point((vx, f.subs(x, vx)))}.")
+    elif poly is not None and poly.total_degree() == 2 and {x, y} <= implicit.free_symbols:
+        a, b = poly.coeff_monomial(x ** 2), poly.coeff_monomial(y ** 2)
+        if poly.coeff_monomial(x * y) == 0 and a * b > 0:
+            info.kind = "Ellipse (oval)"
+            say("This is an oval shape (an ellipse), like a stretched circle.")
+        elif poly.coeff_monomial(x * y) == 0 and a * b < 0:
+            info.kind = "Hyperbola"
+            say("This is a hyperbola: two curves that open away from each other.")
+        else:
+            info.kind = "Curved shape"
+            say("This is a curved shape.")
+        say(f"The graph shows every point (x, y) where {eq.text} is true.")
+    else:
+        say("This is a curve.")
+        if info.explicit_var == y:
+            say(f"For every x, the curve is at height y = {plain(info.explicit)}.")
+        else:
+            say(f"The graph shows every point (x, y) where {eq.text} is true.")
 
-    if info.explicit is not None and info.explicit_var == y:
-        info.facts.insert(0, ("Explicit form", _eq_latex(y, info.explicit)))
+    if info.explicit_var == y and info.kind != "Straight line":
         roots = _real_roots(info.explicit)
-        if roots and info.kind != "Straight line":
-            info.facts.append(("x-intercepts", ",\\ ".join(roots[:6])))
-        if info.kind not in ("Straight line",):
-            info.facts.append(("Derivative  dy/dx", sp.latex(sp.simplify(sp.diff(info.explicit, x)))))
+        if roots:
+            say(f"It crosses the X axis at {_join([f'x = {num(r)}' for r in roots[:6]])}.")
+        elif _polynomial(info.explicit, (x,)) is not None:
+            say("It never crosses the X axis.")
+        y0 = info.explicit.subs(x, 0)
+        if y0.is_real and y0.is_finite:
+            say(f"It crosses the Y axis at y = {num(y0)}.")
     return info
 
 
@@ -154,6 +189,7 @@ def analyse_3d(eq: Equation) -> Analysis:
 
     info = Analysis(kind="Surface", implicit=implicit)
     poly = _polynomial(implicit, (x, y, z))
+    say = info.sentences.append
 
     if sp.degree(implicit, z) == 1:
         a = implicit.coeff(z, 1)
@@ -162,38 +198,39 @@ def analyse_3d(eq: Equation) -> Analysis:
             info.explicit_var = z
 
     if poly is not None and poly.total_degree() == 1:
-        a, b, c = (poly.coeff_monomial(v) for v in (x, y, z))
+        coeffs = {name: poly.coeff_monomial(v) for name, v in (("X", x), ("Y", y), ("Z", z))}
         d = poly.coeff_monomial(1)
-        info.kind = "Plane"
-        info.facts.append(("Standard form", _eq_latex(a * x + b * y + c * z, -d)))
-        info.facts.append(("Normal vector  n", f"\\langle {_num(a)},\\ {_num(b)},\\ {_num(c)} \\rangle"))
-        norm = sp.sqrt(a ** 2 + b ** 2 + c ** 2)
-        info.facts.append(("|n|", _approx(norm)))
-        unit = [sp.nsimplify(v / norm) for v in (a, b, c)]
-        info.facts.append(("Unit normal", r"\langle " + r",\ ".join(f"{float(u):.3f}" for u in unit) + r" \rangle"))
-        for coeff, name in ((a, "x"), (b, "y"), (c, "z")):
-            if coeff != 0:
-                info.facts.append((f"{name}-intercept", _num(-d / coeff)))
-        info.facts.append(("Distance from origin", _approx(sp.Abs(d) / norm)))
-        angles = [float(sp.deg(sp.acos(sp.Abs(v) / norm))) for v in (a, b, c)]
-        info.facts.append(("Angles of n with x, y, z axes", r",\ ".join(f"{t:.2f}^\\circ" for t in angles)))
+        info.kind = PLANE
+        say("This is a flat surface (a plane).")
+        crossing = [name for name, c in coeffs.items() if c != 0]
+        never = [name for name, c in coeffs.items() if c == 0]
+        if d == 0:
+            say("It passes through the centre point (0, 0, 0).")
+        else:
+            say("It crosses " + _join([f"the {n} axis at {n.lower()} = {num(-d / coeffs[n])}" for n in crossing]) + ".")
+        if never and d == 0:
+            say(f"The {_join(never)} axis{'es lie' if len(never) > 1 else ' lies'} inside it.")
+        elif never:
+            say(f"It never crosses the {_join(never)} {'axes' if len(never) > 1 else 'axis'} — "
+                f"it runs alongside {'them' if len(never) > 1 else 'it'}.")
     elif poly is not None and (sphere := _quadric_sphere(poly, (x, y, z))):
         center, r2 = sphere
         if r2 > 0:
-            r = sp.sqrt(r2)
-            info.kind = "Sphere"
-            info.facts.append(("Centre", "(" + r",\ ".join(_num(c) for c in center) + ")"))
-            info.facts.append(("Radius", _num(r)))
-            info.facts.append(("Surface area", _approx(4 * sp.pi * r2)))
-            info.facts.append(("Volume", _approx(sp.Rational(4, 3) * sp.pi * r ** 3)))
+            info.kind = "Sphere (ball)"
+            say("This is a ball shape (a sphere).")
+            say(f"Its centre is at {_point(center)} and its radius (the distance from the centre "
+                f"to the surface) is {num(sp.sqrt(r2))}.")
+        elif r2 == 0:
+            info.kind = "Single point"
+            say(f"Only one point makes this true: {_point(center)}.")
         else:
-            info.kind = "Empty set / single point"
-    elif poly is not None and poly.total_degree() == 2:
-        info.kind = "Quadric surface"
-
-    if info.explicit is not None:
-        info.facts.insert(0, ("Explicit form", _eq_latex(z, info.explicit)))
-        if info.kind != "Plane":
-            gx, gy = sp.diff(info.explicit, x), sp.diff(info.explicit, y)
-            info.facts.append(("Gradient  ∇z", f"\\langle {sp.latex(sp.simplify(gx))},\\ {sp.latex(sp.simplify(gy))} \\rangle"))
+            info.kind = "Nothing to draw"
+            say("No point makes this equation true, so there is nothing to draw.")
+    else:
+        info.kind = "Curved surface"
+        say("This is a curved surface.")
+        if info.explicit is not None:
+            say(f"For every x and y, the surface is at z = {plain(info.explicit)}.")
+        else:
+            say(f"It is made of every point (x, y, z) where {eq.text} is true.")
     return info

@@ -16,7 +16,7 @@ from pathlib import Path
 from flask import Flask, Response, jsonify, request
 
 from coordinate.parser import MAX_LINE_LENGTH, MAX_LINES
-from coordinate.service import EXAMPLES_2D, EXAMPLES_3D, cards, figure_json, prepare, relations
+from coordinate.service import STARTING_TEXT, explanations, figure_json, measurements, prepare
 
 # Vercel rejects function responses above 4.5 MB; plotting keeps figures far smaller, this is a safety net.
 MAX_RESPONSE_BYTES = 4_000_000
@@ -26,7 +26,7 @@ app.config["MAX_CONTENT_LENGTH"] = 64 * 1024  # requests are small JSON document
 
 _PAGE = (Path(__file__).resolve().parent / "web" / "index.html").read_text(encoding="utf-8")
 _PAGE = _PAGE.replace("__CONFIG__", json.dumps({
-    "examples": {"3d": EXAMPLES_3D, "2d": EXAMPLES_2D},
+    "startingText": STARTING_TEXT,
     "maxChars": MAX_LINES * (MAX_LINE_LENGTH + 1),
 }).replace("</", "<\\/"))
 
@@ -74,8 +74,8 @@ def compute():
     result = {
         "errors": errors,
         "warnings": prep.warnings,
-        "cards": cards(prep),
-        "relations": relations(prep),
+        "explanations": explanations(prep, is_3d),
+        "measurements": measurements(prep),
     }
     payload = json.dumps(result)
     if len(payload) + len(figure) > MAX_RESPONSE_BYTES:
