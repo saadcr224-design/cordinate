@@ -1,10 +1,8 @@
-import math
-
 import pytest
 import sympy as sp
 
 from coordinate.analysis import analyse_2d, analyse_3d
-from coordinate.parser import Equation, ParseError, Point, Values, Vector, evaluate, parse_line, parse_lines, x, y, z
+from coordinate.parser import Equation, ParseError, Point, Vector, parse_line, parse_lines, x, y, z
 from coordinate.plotting import figure_2d, figure_3d
 
 
@@ -37,15 +35,6 @@ def test_rejects_bad_input(bad):
 def test_parse_lines_collects_errors():
     items, errors = parse_lines("2x + y = 1\n\n# comment\nfoo(\nA(1,2)")
     assert len(items) == 2 and len(errors) == 1
-
-
-def test_evaluate_example():
-    eq = parse_line("2x + 4y + 6z")
-    _, value = evaluate(eq.lhs, {"x": 1, "y": 2, "z": 3})
-    assert value == 28
-    working, value = evaluate(eq.lhs, {"x": 4, "y": 1, "z": 1})
-    assert value == 18
-    assert working == r"2 \cdot \left(4\right) + 4 \cdot \left(1\right) + 6 \cdot \left(1\right)"
 
 
 def test_plane_analysis():
@@ -105,14 +94,12 @@ def test_default_labels_count_per_kind():
     assert [i.label for i in items[1:]] == ["P1", "v1", "P2", "v2"]
 
 
-def test_values_line():
-    v = parse_line("x = 1, y = 2, z = 3")
-    assert isinstance(v, Values) and v.values == {"x": 1, "y": 2, "z": 3}
-    assert parse_line("x=-2; y=0.5").values == {"x": -2, "y": 0.5}
+def test_value_lines_are_not_supported():
+    # The "plug in numbers" feature was removed: "x = 1, y = 2" is no longer special.
+    with pytest.raises(ParseError):
+        parse_line("x = 1, y = 2, z = 3")
     # A single assignment is still an equation (the plane / line x = 1).
     assert isinstance(parse_line("x = 1"), Equation)
-    with pytest.raises(ParseError):
-        parse_line("x = 1, x = 2")
 
 
 @pytest.mark.parametrize("bad", ["x^999999", "9^9^9^9", "((x^20)^20)^20", "1/0", "log(0)", "99999999999999999999"])
@@ -141,7 +128,3 @@ def test_equations_without_variables(text):
     with pytest.raises(ValueError):
         analyse_3d(parse_line(text))
 
-
-def test_evaluate_undefined_values():
-    assert math.isnan(evaluate(parse_line("1/x").lhs, {"x": 0})[1])
-    assert math.isnan(evaluate(parse_line("sqrt(x)").lhs, {"x": -4})[1])

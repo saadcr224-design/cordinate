@@ -2,7 +2,7 @@
 
 An interactive **2D and 3D coordinate system** app written in Python.
 Type equations, points and vectors, and see them drawn in a rotatable 3D space or on a 2D plane —
-together with an automatic analysis and a step-by-step calculator.
+together with an automatic analysis of each shape.
 
 ## Features
 
@@ -15,8 +15,6 @@ together with an automatic analysis and a step-by-step calculator.
   - plane → normal vector, unit normal, intercepts, distance from origin
   - circle / sphere → centre, radius, area / volume
   - parabola → vertex, roots, derivative
-- **Plug in numbers** — enter x, y, z in the boxes, or type a line like `x = 1, y = 2, z = 3`, and see
-  e.g. `2x + 4y + 6z = 2·(1) + 4·(2) + 6·(3) = 28`, whether the point lies on the graph, and the point ★ drawn on it.
 - Distance and midpoint between points; dot product, cross product and angle between vectors.
 
 ## Input syntax (one item per line)
@@ -28,7 +26,6 @@ together with an automatic analysis and a step-by-step calculator.
 | `z = x^2 - y^2` or `x^2 - y^2` | surface `z = f(x, y)` |
 | `x^2 + y^2 + z^2 = 9` | sphere |
 | `y = 2x + 1`, `2x + 4y = 8`, `x^2 + y^2 = 16` | 2D curves |
-| `x = 1, y = 2, z = 3` | numbers to plug in (a single `x = 1` is still the plane / line x = 1) |
 | `A(1, 2, 3)` or `(1, 2)` | point |
 | `<1, 2, 3>` or `v = <1, 2>` | vector from the origin |
 | `sin cos tan sqrt exp ln abs`, `pi` | functions and constants |

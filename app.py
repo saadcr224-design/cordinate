@@ -16,9 +16,7 @@ from pathlib import Path
 from flask import Flask, Response, jsonify, request
 
 from coordinate.parser import MAX_LINE_LENGTH, MAX_LINES
-from coordinate.service import (
-    DEFAULT_VALUES, EXAMPLES_2D, EXAMPLES_3D, cards, clamp_value, evaluations, figure_json, prepare, relations,
-)
+from coordinate.service import EXAMPLES_2D, EXAMPLES_3D, cards, figure_json, prepare, relations
 
 # Vercel rejects function responses above 4.5 MB; plotting keeps figures far smaller, this is a safety net.
 MAX_RESPONSE_BYTES = 4_000_000
@@ -29,7 +27,6 @@ app.config["MAX_CONTENT_LENGTH"] = 64 * 1024  # requests are small JSON document
 _PAGE = (Path(__file__).resolve().parent / "web" / "index.html").read_text(encoding="utf-8")
 _PAGE = _PAGE.replace("__CONFIG__", json.dumps({
     "examples": {"3d": EXAMPLES_3D, "2d": EXAMPLES_2D},
-    "defaults": DEFAULT_VALUES,
     "maxChars": MAX_LINES * (MAX_LINE_LENGTH + 1),
 }).replace("</", "<\\/"))
 
@@ -66,14 +63,10 @@ def compute():
     opacity = _number(body.get("opacity"), 0.8, 0.2, 1.0) if is_3d else 1.0
     show_extra = bool(body.get("showExtra", True))
 
-    names = ["x", "y", "z"] if is_3d else ["x", "y"]
-    raw_values = body.get("values") if isinstance(body.get("values"), dict) else {}
-    values = {n: clamp_value(_number(raw_values.get(n), DEFAULT_VALUES[n], -1e6, 1e6)) for n in names}
-
     prep = prepare(text, is_3d)
     errors = list(prep.errors)
     try:
-        figure = figure_json(text, is_3d, rng, opacity, show_extra, tuple(values[n] for n in names))
+        figure = figure_json(text, is_3d, rng, opacity, show_extra)
     except Exception:  # keep the rest of the page working even if one graph cannot be drawn
         figure = "null"
         errors.append("Could not draw the graph for this input.")
@@ -81,9 +74,6 @@ def compute():
     result = {
         "errors": errors,
         "warnings": prep.warnings,
-        "typedValues": {n: clamp_value(v) for n, v in prep.typed_values.items() if n in names},
-        "values": values,
-        "evaluations": evaluations(prep, values),
         "cards": cards(prep),
         "relations": relations(prep),
     }
