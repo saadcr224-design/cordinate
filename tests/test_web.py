@@ -43,6 +43,10 @@ def test_plug_in_feature_is_removed(client):
     assert "Plug in numbers" not in page
 
 
+def test_syntax_help_is_removed(client):
+    assert "Syntax" not in client.get("/").data.decode()
+
+
 def test_compute_2d_with_points_and_vectors(client):
     data = post(client, text="y = x^2\nA(1, 1)\nB(4, 5)\n<3, 4>\n<1, 0>", mode="2d")
     assert data["cards"][0]["kind"] == "Parabola"

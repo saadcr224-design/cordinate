@@ -78,20 +78,6 @@ with st.sidebar:
     if st.button("Load example", width="stretch"):
         st.session_state[f"input_{mode}"] = examples[choice]
 
-    st.markdown("### 📝 Syntax")
-    st.markdown(
-        """
-- `2x + 4y + 6z = 12` → plane
-- `2x + 4y + 6z` → same as `… = 0`
-- `z = x^2 + y^2`, `y = sin(x)`
-- `x^2 + y^2 + z^2 = 9` → sphere
-- `A(1, 2, 3)` or `(1, 2)` → point
-- `<1, 2, 3>` or `v = <1, 2>` → vector
-- Functions: `sin cos tan sqrt exp ln abs`, constant `pi`
-- `#` starts a comment
-        """
-    )
-
 # ----------------------------------------------------------------------------- input
 
 key = f"input_{mode}"
