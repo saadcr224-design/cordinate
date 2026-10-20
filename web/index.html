@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Coordinate Studio</title>
-  <meta name="description" content="Interactive 2D and 3D coordinate system: plot equations, points and vectors and plug in numbers.">
+  <meta name="description" content="Interactive 2D and 3D coordinate system: plot equations, points and vectors.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📐</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono&display=swap">
@@ -23,7 +23,7 @@
       font-family: Inter, "Segoe UI", system-ui, sans-serif; color: var(--text); min-height: 100vh;
       background: radial-gradient(circle at 15% 0%, #1e1b4b 0%, var(--bg) 45%, #050814 100%) fixed var(--bg);
     }
-    code, textarea, input[type=number] { font-family: "JetBrains Mono", Consolas, monospace; }
+    code, textarea { font-family: "JetBrains Mono", Consolas, monospace; }
     code { background: #111827; color: #a3e635; padding: 1px 6px; border-radius: 6px; font-size: .85em; }
     .layout { display: grid; grid-template-columns: 290px minmax(0, 1fr); min-height: 100vh; }
     aside {
@@ -58,27 +58,12 @@
     .input-label { font-size: .85rem; color: #cbd5e1; display: flex; justify-content: space-between; margin-bottom: 6px; }
     textarea { width: 100%; min-height: 130px; resize: vertical; font-size: 1.05rem; line-height: 1.5; color: var(--text);
       background: var(--panel-solid); border: 1px solid #334155; border-radius: 12px; padding: 12px 14px; }
-    textarea:focus, input[type=number]:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 0; }
+    textarea:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 0; }
     .messages { margin: 10px 0; display: grid; gap: 8px; }
     .msg { border-radius: 10px; padding: 10px 14px; font-size: .92rem; }
     .msg.error { background: rgba(248,113,113,.12); color: #fca5a5; border: 1px solid rgba(248,113,113,.35); }
     .msg.warning { background: rgba(251,191,36,.10); color: #fde68a; border: 1px solid rgba(251,191,36,.3); }
-    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 18px 20px;
-      box-shadow: 0 4px 20px rgba(0,0,0,.25); margin: 16px 0; }
-    .panel h2 { margin: 0 0 4px; font-size: 1.25rem; }
-    .caption { color: var(--muted); font-size: .85rem; margin: 0 0 12px; }
-    .values { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 12px; }
-    .values label { font-size: .85rem; color: #cbd5e1; display: grid; gap: 6px; }
-    .values input { width: 100%; font-size: 1rem; color: var(--text); background: var(--panel-solid);
-      border: 1px solid #334155; border-radius: 10px; padding: 9px 10px; }
-    .eval { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; align-items: center;
-      padding: 12px 0; border-top: 1px solid var(--border); }
-    .eval:first-of-type { margin-top: 14px; }
-    .eval .name { font-weight: 700; grid-column: 1 / -1; }
-    .eval .math { overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
-    .badge { font-size: .85rem; border-radius: 10px; padding: 8px 12px; white-space: nowrap; color: var(--muted); }
-    .badge.on { background: rgba(34,197,94,.15); color: #86efac; border: 1px solid rgba(34,197,94,.35); }
-    .content { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(260px, 1fr); gap: 28px; align-items: start; }
+    .content { margin-top: 18px; display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(260px, 1fr); gap: 28px; align-items: start; }
     #plot { width: 100%; height: 700px; border-radius: 14px; overflow: hidden; background: var(--bg); }
     .hint { color: var(--muted); font-size: .82rem; margin-top: 8px; }
     .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; margin-bottom: 14px; }
@@ -130,7 +115,6 @@
         <li><code>2x + 4y + 6z</code> → same as <code>… = 0</code></li>
         <li><code>z = x^2 + y^2</code>, <code>y = sin(x)</code></li>
         <li><code>x^2 + y^2 + z^2 = 9</code> → sphere</li>
-        <li><code>x = 1, y = 2, z = 3</code> → numbers to plug in</li>
         <li><code>A(1, 2, 3)</code> or <code>(1, 2)</code> → point</li>
         <li><code>&lt;1, 2, 3&gt;</code> or <code>v = &lt;1, 2&gt;</code> → vector</li>
         <li>Functions: <code>sin cos tan sqrt exp ln abs</code>, constant <code>pi</code></li>
@@ -146,17 +130,10 @@
         <code>&lt;3, 4, 5&gt;</code> — see them in a live, rotatable 3D space or on a 2D plane.</p>
     </section>
 
-    <label class="input-label" for="text"><span>Equations, points, vectors and values — one per line</span>
+    <label class="input-label" for="text"><span>Equations, points and vectors — one per line</span>
       <span class="status" id="status"></span></label>
     <textarea id="text" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
     <div class="messages" id="messages" aria-live="polite"></div>
-
-    <section class="panel">
-      <h2>🧮 Plug in numbers</h2>
-      <p class="caption" id="plug-caption"></p>
-      <div class="values" id="values"></div>
-      <div id="evaluations"></div>
-    </section>
 
     <div class="content">
       <section>
@@ -181,7 +158,7 @@
     set(key, value) { try { localStorage.setItem(key, value); } catch { /* storage unavailable */ } },
   };
 
-  const state = { mode: store.get("cs-mode") === "2d" ? "2d" : "3d", lastTyped: "{}", seq: 0, controller: null };
+  const state = { mode: store.get("cs-mode") === "2d" ? "2d" : "3d", seq: 0, controller: null };
   const text = $("text");
   text.maxLength = CONFIG.maxChars;
 
@@ -194,37 +171,14 @@
     return node;
   }
 
-  function tex(latex, display = false) {
+  function tex(latex) {
     const span = el("span");
-    if (window.katex) katex.render(latex, span, { throwOnError: false, displayMode: display });
+    if (window.katex) katex.render(latex, span, { throwOnError: false });
     else span.textContent = latex;
     return span;
   }
 
-  function names() { return state.mode === "3d" ? ["x", "y", "z"] : ["x", "y"]; }
-
   // ------------------------------------------------------------------ controls
-
-  function buildValueInputs(values) {
-    const wrap = $("values");
-    wrap.replaceChildren();
-    for (const n of names()) {
-      const input = el("input", { type: "number", id: `value-${n}`, step: "1", min: "-1000000", max: "1000000",
-                                  inputmode: "decimal" });
-      input.value = values[n] ?? CONFIG.defaults[n];
-      input.addEventListener("input", schedule);
-      wrap.append(el("label", {}, n, input));
-    }
-  }
-
-  function currentValues() {
-    const values = {};
-    for (const n of names()) {
-      const v = parseFloat($(`value-${n}`).value);
-      values[n] = Number.isFinite(v) ? v : CONFIG.defaults[n];
-    }
-    return values;
-  }
 
   function setMode(mode) {
     state.mode = mode;
@@ -234,16 +188,12 @@
     $("extra-label").textContent = mode === "3d" ? "Show coloured X / Y / Z axes" : "Show grid";
     $("range").value = mode === "3d" ? 10 : 8;
     $("range-out").textContent = $("range").value;
-    $("plug-caption").textContent = `Type values here, or write a line like "x = 1, y = 2${mode === "3d" ? ", z = 3" : ""}" ` +
-      "above. Each equation is worked out step by step and the point ★ is drawn on the graph.";
     $("plot-hint").textContent = mode === "3d"
       ? "🖱️ Drag to rotate · scroll or pinch to zoom · double-click to reset · click legend items to hide them"
       : "🖱️ Drag to pan · scroll or pinch to zoom · double-click to reset";
     const examples = CONFIG.examples[mode];
     $("examples").replaceChildren(...Object.keys(examples).map((name) => el("option", { value: name }, name)));
     text.value = store.get(`cs-text-${mode}`) ?? Object.values(examples)[0];
-    state.lastTyped = "{}";
-    buildValueInputs(CONFIG.defaults);
     if (window.Plotly) Plotly.purge($("plot"));
     compute();
   }
@@ -255,20 +205,6 @@
       ...data.errors.map((m) => el("div", { class: "msg error" }, "⚠️ " + m)),
       ...data.warnings.map((m) => el("div", { class: "msg warning" }, "ℹ️ " + m)),
     );
-  }
-
-  function renderEvaluations(rows) {
-    const box = $("evaluations");
-    if (!rows.length) {
-      box.replaceChildren(el("p", { class: "empty", style: "margin-top:14px" },
-        "Add an equation above (e.g. 2x + 4y + 6z) to see it evaluated."));
-      return;
-    }
-    box.replaceChildren(...rows.map((r) => el("div", { class: "eval" },
-      el("div", { class: "name", style: `color:${r.color}` }, r.text),
-      el("div", { class: "math" }, tex(r.working, true)),
-      el("div", { class: "badge" + (r.on_graph ? " on" : "") }, r.on_graph ? "✅ On the graph" : "Not on the graph"),
-    )));
   }
 
   function renderAnalysis(data) {
@@ -310,24 +246,14 @@
         signal: state.controller.signal,
         body: JSON.stringify({
           text: text.value, mode: state.mode, range: +$("range").value, opacity: +$("opacity").value,
-          showExtra: $("extra").checked, values: currentValues(),
+          showExtra: $("extra").checked,
         }),
       });
       if (!response.ok) throw new Error(`Server error ${response.status}`);
       const data = await response.json();
       if (seq !== state.seq) return;
 
-      // Values typed as "x = 1, y = 2" fill the boxes once, then the boxes stay editable.
-      const typed = JSON.stringify(data.typedValues);
-      if (typed !== state.lastTyped) {
-        state.lastTyped = typed;
-        if (Object.keys(data.typedValues).length) {
-          buildValueInputs({ ...currentValues(), ...data.typedValues });
-          return compute();
-        }
-      }
       renderMessages(data);
-      renderEvaluations(data.evaluations);
       renderAnalysis(data);
       renderPlot(data.figure);
       $("status").textContent = "";

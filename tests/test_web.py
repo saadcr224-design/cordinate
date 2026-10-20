@@ -30,16 +30,22 @@ def test_page_and_health(client):
 
 
 def test_compute_3d_example(client):
-    data = post(client, text="2x + 4y + 6z\nx = 1, y = 2, z = 3", mode="3d", values={"x": 1, "y": 2, "z": 3})
-    assert data["typedValues"] == {"x": 1, "y": 2, "z": 3}
+    data = post(client, text="2x + 4y + 6z\nA(1, 2, 3)", mode="3d")
     assert data["cards"][0]["kind"] == "Plane"
-    assert "28" in data["evaluations"][0]["working"]
     assert data["figure"]["data"] and not data["errors"]
 
 
+def test_plug_in_feature_is_removed(client):
+    data = post(client, text="2x + 4y + 6z", mode="3d")
+    assert not {"evaluations", "values", "typedValues"} & data.keys()
+    assert not any("★" in (trace.get("name") or "") for trace in data["figure"]["data"])
+    page = client.get("/").data.decode()
+    assert "Plug in numbers" not in page
+
+
 def test_compute_2d_with_points_and_vectors(client):
-    data = post(client, text="y = x^2\nA(1, 1)\nB(4, 5)\n<3, 4>\n<1, 0>", mode="2d", values={"x": 1, "y": 1})
-    assert data["evaluations"][0]["on_graph"] is True
+    data = post(client, text="y = x^2\nA(1, 1)\nB(4, 5)\n<3, 4>\n<1, 0>", mode="2d")
+    assert data["cards"][0]["kind"] == "Parabola"
     titles = [s["title"] for s in data["relations"]]
     assert any("points" in t for t in titles) and any("Vectors" in t for t in titles)
 

@@ -12,9 +12,7 @@ import html
 import streamlit as st
 
 from coordinate.parser import MAX_LINE_LENGTH, MAX_LINES
-from coordinate.service import (
-    DEFAULT_VALUES, EXAMPLES_2D, EXAMPLES_3D, build_figure, cards, clamp_value, evaluations, prepare, relations,
-)
+from coordinate.service import EXAMPLES_2D, EXAMPLES_3D, build_figure, cards, prepare, relations
 
 st.set_page_config(page_title="Coordinate Studio", page_icon="📐", layout="wide")
 
@@ -87,7 +85,6 @@ with st.sidebar:
 - `2x + 4y + 6z` → same as `… = 0`
 - `z = x^2 + y^2`, `y = sin(x)`
 - `x^2 + y^2 + z^2 = 9` → sphere
-- `x = 1, y = 2, z = 3` → numbers to plug in
 - `A(1, 2, 3)` or `(1, 2)` → point
 - `<1, 2, 3>` or `v = <1, 2>` → vector
 - Functions: `sin cos tan sqrt exp ln abs`, constant `pi`
@@ -101,47 +98,15 @@ key = f"input_{mode}"
 if key not in st.session_state:
     st.session_state[key] = list(examples.values())[0]
 
-text = st.text_area("Equations, points, vectors and values — one per line", key=key, height=130,
+text = st.text_area("Equations, points and vectors — one per line", key=key, height=130,
                     max_chars=MAX_LINES * (MAX_LINE_LENGTH + 1))
 
 
 prep = prepare(text, is_3d)
-errors, warnings, typed_values = prep.errors, prep.warnings, prep.typed_values
-for err in errors:
+for err in prep.errors:
     st.error(err, icon="⚠️")
-for warning in warnings:
+for warning in prep.warnings:
     st.warning(warning, icon="ℹ️")
-
-# ----------------------------------------------------------------------------- plug in numbers
-
-with st.container(border=True):
-    st.markdown("#### 🧮 Plug in numbers")
-    st.caption("Type values here, or write a line like `x = 1, y = 2" + (", z = 3" if is_3d else "") +
-               "` above. Each equation is worked out step by step and the point ★ is drawn on the graph.")
-    names = ["x", "y", "z"] if is_3d else ["x", "y"]
-    cols = st.columns(len(names))
-    # The widget is keyed by its typed value, so editing the text box resets the box to that value.
-    values = {n: col.number_input(n, value=clamp_value(typed_values.get(n, DEFAULT_VALUES[n])),
-                                  min_value=-1e6, max_value=1e6, step=1.0, format="%g",
-                                  key=f"plug_{mode}_{n}_{typed_values.get(n)}")
-              for n, col in zip(names, cols)}
-
-    rows = evaluations(prep, values)
-    if not rows:
-        st.info("Add an equation above (e.g. `2x + 4y + 6z`) to see it evaluated.")
-    for row in rows:
-        c1, c2 = st.columns([4, 1], vertical_alignment="center")
-        with c1:
-            st.markdown(f'<span style="color:{row["color"]};font-weight:700">{html.escape(row["text"])}</span>',
-                        unsafe_allow_html=True)
-            st.latex(row["working"])
-        with c2:
-            if row["on_graph"]:
-                st.success("On the graph", icon="✅")
-            else:
-                st.caption("Point is not on the graph")
-
-coords = tuple(values[n] for n in names)
 
 # ----------------------------------------------------------------------------- layout
 
@@ -149,7 +114,7 @@ plot_col, info_col = st.columns([2.2, 1], gap="large")
 
 with plot_col:
     try:
-        fig = build_figure(text, is_3d, rng, opacity if is_3d else 1.0, show_axes if is_3d else show_grid, coords)
+        fig = build_figure(text, is_3d, rng, opacity if is_3d else 1.0, show_axes if is_3d else show_grid)
         st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "scrollZoom": True})
     except Exception as exc:  # keep the app alive on an unplottable expression
         st.error(f"Could not draw the graph: {exc}")

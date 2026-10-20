@@ -12,15 +12,14 @@ from functools import lru_cache
 from itertools import combinations
 
 import numpy as np
-import sympy as sp
 
 from .analysis import Analysis, analyse_2d, analyse_3d
-from .parser import Equation, Point, Values, Vector, evaluate, parse_lines
+from .parser import Equation, Point, Vector, parse_lines
 from .plotting import PALETTE, figure_2d, figure_3d
 
 EXAMPLES_3D = {
     "Plane  2x + 4y + 6z = 12": "2x + 4y + 6z = 12\nA(1, 1, 1)",
-    "Your example  2x + 4y + 6z": "2x + 4y + 6z\nx = 1, y = 2, z = 3",
+    "Your example  2x + 4y + 6z": "2x + 4y + 6z",
     "Sphere": "x^2 + y^2 + z^2 = 16\nP(0, 0, 4)",
     "Saddle  z = x² − y²": "z = (x^2 - y^2) / 4",
     "Ripple": "z = 2 sin(sqrt(x^2 + y^2))",
@@ -28,7 +27,7 @@ EXAMPLES_3D = {
     "Points & distance": "A(1, 2, 3)\nB(-3, 4, -2)\nC(4, -4, 1)",
 }
 EXAMPLES_2D = {
-    "Line  2x + 4y = 8": "2x + 4y = 8\nx = 2, y = 1",
+    "Line  2x + 4y = 8": "2x + 4y = 8\nA(2, 1)",
     "Parabola": "y = x^2 - 4x + 3",
     "Circle": "x^2 + y^2 = 16\n(0, 4)",
     "Sine wave": "y = 3 sin(x)",
@@ -36,8 +35,6 @@ EXAMPLES_2D = {
     "Vectors": "<3, 4>\nw = <-2, 3>",
     "Hyperbola": "x^2 - y^2 = 4",
 }
-DEFAULT_VALUES = {"x": 1.0, "y": 2.0, "z": 3.0}
-MAX_VALUE = 1e6
 
 
 @dataclass(frozen=True)
@@ -45,19 +42,15 @@ class Prepared:
     errors: list[str]
     warnings: list[str]
     plot_items: list[tuple[str, object]]   # (label, Analysis | Point | Vector) in input order
-    analysed: list[tuple[Equation, Analysis]]
-    typed_values: dict[str, float]         # from lines such as "x = 1, y = 2, z = 3"
 
 
 @lru_cache(maxsize=256)
 def prepare(text: str, is_3d: bool) -> Prepared:
     """Parse and analyse the input. Cached, so changing a slider does not redo the maths."""
     items, errors = parse_lines(text)
-    warnings, plot_items, analysed, typed_values = [], [], [], {}
+    warnings, plot_items = [], []
     for item in items:
-        if isinstance(item, Values):
-            typed_values.update(item.values)
-        elif isinstance(item, Equation):
+        if isinstance(item, Equation):
             try:
                 info = analyse_3d(item) if is_3d else analyse_2d(item)
             except ValueError as exc:
@@ -67,28 +60,21 @@ def prepare(text: str, is_3d: bool) -> Prepared:
                 warnings.append(f"'{item.text}' could not be analysed")
                 continue
             plot_items.append((item.text, info))
-            analysed.append((item, info))
         elif not is_3d and len(getattr(item, "coords", getattr(item, "components", ()))) == 3:
             warnings.append(f"'{item.text}' has 3 numbers — switch to 3D Space to plot it")
         else:
             plot_items.append((item.text, item))
-    return Prepared(errors, warnings, plot_items, analysed, typed_values)
+    return Prepared(errors, warnings, plot_items)
 
 
-def clamp_value(value: float) -> float:
-    return min(max(float(value), -MAX_VALUE), MAX_VALUE)
-
-
-def build_figure(text: str, is_3d: bool, rng: float, opacity: float, show_extra: bool, coords: tuple):
-    """The Plotly figure, with the plugged-in point drawn as a highlighted star."""
-    star = ("★ (" + ", ".join(f"{v:g}" for v in coords) + ")", Point("plug", "★", coords, highlight=True))
-    items = [*prepare(text, is_3d).plot_items, star]
+def build_figure(text: str, is_3d: bool, rng: float, opacity: float, show_extra: bool):
+    items = prepare(text, is_3d).plot_items
     return figure_3d(items, rng, opacity, show_extra) if is_3d else figure_2d(items, rng, show_extra)
 
 
 @lru_cache(maxsize=32)
-def figure_json(text: str, is_3d: bool, rng: float, opacity: float, show_extra: bool, coords: tuple) -> str:
-    return build_figure(text, is_3d, rng, opacity, show_extra, coords).to_json()
+def figure_json(text: str, is_3d: bool, rng: float, opacity: float, show_extra: bool) -> str:
+    return build_figure(text, is_3d, rng, opacity, show_extra).to_json()
 
 
 def show(value: float) -> str:
@@ -97,26 +83,6 @@ def show(value: float) -> str:
 
 def _colors(prep: Prepared) -> dict[str, str]:
     return {label: PALETTE[i % len(PALETTE)] for i, (label, _) in enumerate(prep.plot_items)}
-
-
-def evaluations(prep: Prepared, values: dict[str, float]) -> list[dict]:
-    """Each equation worked out at the given values, e.g. 2x + 4y + 6z = 2·(1) + 4·(2) + 6·(3) = 28."""
-    colors = _colors(prep)
-    rows = []
-    for eq, info in prep.analysed:
-        lhs_work, lhs_val = evaluate(eq.lhs, values)
-        working = f"{sp.latex(eq.lhs)} \\;=\\; {lhs_work} \\;=\\; \\mathbf{{{show(lhs_val)}}}"
-        if eq.has_equals:
-            _, rhs_val = evaluate(eq.rhs, values)
-            working += f"\\qquad \\text{{(right side }} = {show(rhs_val)}\\text{{)}}"
-        residual = evaluate(info.implicit, values)[1]
-        rows.append({
-            "text": eq.text,
-            "color": colors[eq.text],
-            "working": working,
-            "on_graph": not math.isnan(residual) and abs(residual) < 1e-9,
-        })
-    return rows
 
 
 def cards(prep: Prepared) -> list[dict]:
