@@ -8,8 +8,6 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📐</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono&display=swap">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
-  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@4.1.1/plotly.min.js"></script>
   <style>
     :root {
@@ -43,7 +41,7 @@
     .segmented button[aria-pressed=true] { background: linear-gradient(135deg, #0ea5e9, #8b5cf6); color: white; }
     .toggle { display: flex; align-items: center; gap: 10px; margin-top: 14px; font-size: .9rem; cursor: pointer; }
     .toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
-    select, .btn { width: 100%; font: inherit; color: var(--text); background: var(--panel-solid); border: 1px solid #334155;
+    .btn { width: 100%; font: inherit; color: var(--text); background: var(--panel-solid); border: 1px solid #334155;
       border-radius: 10px; padding: 9px 10px; }
     .btn { margin-top: 8px; cursor: pointer; font-weight: 600; }
     .btn:hover { border-color: var(--accent); }
@@ -57,7 +55,7 @@
     .input-label { font-size: .85rem; color: #cbd5e1; display: flex; justify-content: space-between; margin-bottom: 6px; }
     textarea { width: 100%; min-height: 130px; resize: vertical; font-size: 1.05rem; line-height: 1.5; color: var(--text);
       background: var(--panel-solid); border: 1px solid #334155; border-radius: 12px; padding: 12px 14px; }
-    textarea:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 0; }
+    textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; }
     .messages { margin: 10px 0; display: grid; gap: 8px; }
     .msg { border-radius: 10px; padding: 10px 14px; font-size: .92rem; }
     .msg.error { background: rgba(248,113,113,.12); color: #fca5a5; border: 1px solid rgba(248,113,113,.35); }
@@ -68,8 +66,7 @@
     .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; margin-bottom: 14px; }
     .card h4 { margin: 0 0 10px; font-size: 1rem; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
     .chip { padding: 2px 10px; border-radius: 999px; font-size: .75rem; font-weight: 600; color: var(--bg); }
-    .fact { margin: 8px 0; line-height: 1.5; overflow-x: auto; overflow-y: hidden; }
-    .fact b { color: #f1f5f9; font-weight: 600; }
+    .sentence { margin: 6px 0; line-height: 1.6; color: #e2e8f0; }
     .empty { color: var(--muted); background: rgba(56,189,248,.08); border: 1px solid rgba(56,189,248,.25);
       border-radius: 10px; padding: 10px 14px; }
     .status { font-size: .8rem; color: var(--muted); min-height: 1em; }
@@ -103,23 +100,19 @@
         <input type="range" id="opacity" min="0.2" max="1" step="0.05" value="0.8">
       </div>
       <label class="toggle"><input type="checkbox" id="extra" checked> <span id="extra-label">Show coloured X / Y / Z axes</span></label>
-
-      <h3>✨ Examples</h3>
-      <select id="examples" aria-label="Load an example"></select>
-      <button type="button" class="btn" id="load">Load example</button>
     </div>
   </aside>
 
   <main>
     <section class="hero">
       <h1>📐 <span>Coordinate Studio</span></h1>
-      <p>Type equations like <code>2x + 4y + 6z = 12</code>, points like <code>A(1, 2, 3)</code> or vectors like
-        <code>&lt;3, 4, 5&gt;</code> — see them in a live, rotatable 3D space or on a 2D plane.</p>
+      <p>Type in the box below. Everything you type is drawn on the graph and explained in simple English.</p>
     </section>
 
-    <label class="input-label" for="text"><span>Equations, points and vectors — one per line</span>
+    <label class="input-label" for="text"><span>Type here — one thing per line</span>
       <span class="status" id="status"></span></label>
-    <textarea id="text" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+    <textarea id="text" spellcheck="false" autocapitalize="off" autocomplete="off"
+      placeholder="Type here, one thing per line"></textarea>
     <div class="messages" id="messages" aria-live="polite"></div>
 
     <div class="content">
@@ -128,8 +121,8 @@
         <p class="hint" id="plot-hint"></p>
       </section>
       <section>
-        <h3>🔍 Analysis</h3>
-        <div id="analysis"></div>
+        <h3>💬 Explanation</h3>
+        <div id="explanation"></div>
       </section>
     </div>
   </main>
@@ -147,6 +140,8 @@
 
   const state = { mode: store.get("cs-mode") === "2d" ? "2d" : "3d", seq: 0, controller: null };
   const text = $("text");
+  // Saved text from before the explanations existed is not reused, so everyone first sees the axes explained.
+  const TEXT_KEY = "cs-text-v2";
   text.maxLength = CONFIG.maxChars;
 
   function el(tag, attrs = {}, ...children) {
@@ -156,13 +151,6 @@
     }
     for (const child of children) node.append(child);
     return node;
-  }
-
-  function tex(latex) {
-    const span = el("span");
-    if (window.katex) katex.render(latex, span, { throwOnError: false });
-    else span.textContent = latex;
-    return span;
   }
 
   // ------------------------------------------------------------------ controls
@@ -178,9 +166,7 @@
     $("plot-hint").textContent = mode === "3d"
       ? "X → right · Y ↑ up · Z ↙ towards you  ·  🖱️ Drag to rotate · scroll or pinch to zoom · double-click to reset"
       : "🖱️ Drag to pan · scroll or pinch to zoom · double-click to reset";
-    const examples = CONFIG.examples[mode];
-    $("examples").replaceChildren(...Object.keys(examples).map((name) => el("option", { value: name }, name)));
-    text.value = store.get(`cs-text-${mode}`) ?? Object.values(examples)[0];
+    text.value = store.get(`${TEXT_KEY}-${mode}`) ?? CONFIG.startingText[mode];
     if (window.Plotly) Plotly.purge($("plot"));
     compute();
   }
@@ -194,20 +180,17 @@
     );
   }
 
-  function renderAnalysis(data) {
-    const nodes = [];
-    for (const c of data.cards) {
-      nodes.push(el("div", { class: "card" },
-        el("h4", { style: `color:${c.color}` }, c.label, el("span", { class: "chip", style: `background:${c.color}` }, c.kind)),
-        ...c.facts.map(([name, latex]) => el("div", { class: "fact" }, el("b", {}, name + ": "), tex(latex))),
-      ));
+  function renderExplanation(data) {
+    const nodes = data.explanations.map((c) => el("div", { class: "card" },
+      el("h4", { style: `color:${c.color}` }, c.label, el("span", { class: "chip", style: `background:${c.color}` }, c.kind)),
+      ...c.sentences.map((s) => el("p", { class: "sentence" }, s)),
+    ));
+    if (data.measurements.length) {
+      nodes.push(el("div", { class: "card" }, el("h4", {}, "📏 Measurements"),
+        ...data.measurements.map((s) => el("p", { class: "sentence" }, s))));
     }
-    for (const section of data.relations) {
-      nodes.push(el("div", { class: "card" }, el("h4", {}, section.title),
-        ...section.rows.map(([label, latex]) => el("div", { class: "fact" }, el("b", {}, label + ": "), tex(latex)))));
-    }
-    if (!nodes.length) nodes.push(el("p", { class: "empty" }, "Enter an equation, point or vector to get started."));
-    $("analysis").replaceChildren(...nodes);
+    if (!nodes.length) nodes.push(el("p", { class: "empty" }, "Type something in the box to see it explained here."));
+    $("explanation").replaceChildren(...nodes);
   }
 
   function renderPlot(figure) {
@@ -225,7 +208,7 @@
     state.controller?.abort();
     state.controller = new AbortController();
     $("status").textContent = "Calculating…";
-    store.set(`cs-text-${state.mode}`, text.value);
+    store.set(`${TEXT_KEY}-${state.mode}`, text.value);
     try {
       const response = await fetch("/api/compute", {
         method: "POST",
@@ -241,7 +224,7 @@
       if (seq !== state.seq) return;
 
       renderMessages(data);
-      renderAnalysis(data);
+      renderExplanation(data);
       renderPlot(data.figure);
       $("status").textContent = "";
     } catch (err) {
@@ -264,10 +247,6 @@
   $("range").addEventListener("input", () => { $("range-out").textContent = $("range").value; schedule(); });
   $("opacity").addEventListener("input", () => { $("opacity-out").textContent = (+$("opacity").value).toFixed(2); schedule(); });
   $("extra").addEventListener("change", compute);
-  $("load").addEventListener("click", () => {
-    text.value = CONFIG.examples[state.mode][$("examples").value];
-    compute();
-  });
   $("menu").addEventListener("click", () => {
     const open = $("sidebar").classList.toggle("open");
     $("menu").setAttribute("aria-expanded", String(open));

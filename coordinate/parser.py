@@ -30,6 +30,8 @@ _TRANSFORMS = standard_transformations + (implicit_multiplication_application, c
 _SAFE = re.compile(r"^[0-9a-zA-Z\s\.\+\-\*/\^\(\)=,]*$")
 _WORD = re.compile(r"[a-zA-Z_]+")
 _POINT = re.compile(r"^\s*([A-Za-z]\w*)?\s*\(\s*([^()]*)\)\s*$")
+# "x", "Y", "x axis", "x-axis", "the X axis" all mean that axis itself.
+_AXIS = re.compile(r"^\s*(?:the\s+)?([xyzXYZ])(?:\s*-?\s*axis)?\s*$", re.IGNORECASE)
 _VECTOR = re.compile(r"^\s*([A-Za-z]\w*)?\s*(?:=\s*)?<\s*([^<>]*)>\s*$")
 
 # Limits that keep a public deployment responsive: SymPy can spend minutes (or forever)
@@ -73,6 +75,13 @@ class Vector:
     label: str
     components: tuple[float, ...]
     origin: tuple[float, ...] = field(default_factory=tuple)
+
+
+@dataclass
+class Axis:
+    """One of the coordinate axes, written as "x", "y", "z" or "x axis"."""
+    text: str
+    name: str  # "x", "y" or "z"
 
 
 def _clean(text: str) -> str:
@@ -144,12 +153,14 @@ def _parse_numbers(body: str, text: str) -> tuple[float, ...]:
     return tuple(values)
 
 
-def parse_line(text: str, index: int = 0) -> Equation | Point | Vector:
-    """Parse one line of user input into an equation, point or vector.
+def parse_line(text: str, index: int = 0) -> Equation | Point | Vector | Axis:
+    """Parse one line of user input into an equation, point, vector or axis.
 
     ``index`` numbers the default label (P1, v1, ...) of unnamed points and vectors.
     """
     raw = _clean(text)
+    if axis := _AXIS.match(raw):
+        return Axis(raw, axis.group(1).lower())
     if vec := _VECTOR.match(raw):
         label = vec.group(1) or f"v{index + 1}"
         return Vector(raw, label, _parse_numbers(vec.group(2), raw))
@@ -167,7 +178,7 @@ def parse_line(text: str, index: int = 0) -> Equation | Point | Vector:
     return Equation(raw, parse_expression(raw), sp.Integer(0), False)
 
 
-def parse_lines(text: str) -> tuple[list[Equation | Point | Vector], list[str]]:
+def parse_lines(text: str) -> tuple[list[Equation | Point | Vector | Axis], list[str]]:
     """Parse multi-line input. Returns the parsed items and any error messages."""
     items, errors = [], []
     lines = text.splitlines()

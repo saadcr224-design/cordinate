@@ -6,8 +6,8 @@ import numpy as np
 import plotly.graph_objects as go
 import sympy as sp
 
-from .analysis import Analysis
-from .parser import Point, Vector, x, y, z
+from .analysis import PLANE, Analysis
+from .parser import Axis, Point, Vector, x, y, z
 
 PALETTE = ["#38bdf8", "#f472b6", "#a3e635", "#fbbf24", "#c084fc", "#fb7185", "#2dd4bf", "#f97316"]
 AXIS_COLORS = {"x": "#ef4444", "y": "#22c55e", "z": "#3b82f6"}
@@ -75,6 +75,8 @@ def figure_2d(items, rng: float, show_grid: bool = True) -> go.Figure:
                 text=[f"{item.label}({px:g}, {py:g})"], textposition="top right",
                 textfont=dict(color=color, size=13),
                 hovertemplate=f"{item.label}<br>x=%{{x}}<br>y=%{{y}}<extra></extra>"))
+        elif isinstance(item, Axis):
+            _add_axis_2d(fig, item, label, rng)
         elif isinstance(item, Vector):
             vx, vy = item.components[:2]
             fig.add_annotation(x=vx, y=vy, ax=0, ay=0, xref="x", yref="y", axref="x", ayref="y",
@@ -136,6 +138,35 @@ def _add_curve_2d(fig: go.Figure, info: Analysis, label: str, color: str, rng: f
             colorscale=[[0, color], [1, color]], line=dict(width=3.5), hoverinfo="skip"))
 
 
+_AXIS_WORDS = {"x": "left to right", "y": "up and down", "z": "towards you and away from you"}
+
+
+def _axis_points(name: str, length: float) -> dict:
+    ends = [-length, length]
+    return {n: (ends if n == name else [0, 0]) for n in "xyz"}
+
+
+def _add_axis_2d(fig: go.Figure, axis: Axis, label: str, rng: float) -> None:
+    """A highlighted axis: "x" is drawn as a thick horizontal line, "y" as a thick vertical one."""
+    if axis.name == "z":
+        return
+    color = AXIS_COLORS[axis.name]
+    ends = _axis_points(axis.name, rng * 1.5)
+    fig.add_trace(go.Scatter(x=ends["x"], y=ends["y"], mode="lines", name=label, opacity=0.85,
+                             line=dict(color=color, width=8),
+                             hovertemplate=f"{axis.name.upper()} axis — runs {_AXIS_WORDS[axis.name]}<extra></extra>"))
+
+
+def _add_axis_3d(fig: go.Figure, axis: Axis, label: str, rng: float) -> None:
+    """A highlighted axis in 3D: a wide soft glow under a thick core line, labelled at its end."""
+    color = AXIS_COLORS[axis.name]
+    ends = _axis_points(axis.name, rng)
+    fig.add_trace(go.Scatter3d(**ends, mode="lines", opacity=0.35, line=dict(color=color, width=22),
+                               hoverinfo="skip", showlegend=False))
+    fig.add_trace(go.Scatter3d(**ends, mode="lines", name=label, line=dict(color=color, width=10),
+                               hovertemplate=f"{axis.name.upper()} axis — runs {_AXIS_WORDS[axis.name]}<extra></extra>"))
+
+
 def _nice_step(rng: float) -> float:
     raw = rng / 5
     mag = 10 ** np.floor(np.log10(raw))
@@ -171,6 +202,8 @@ def figure_3d(items, rng: float, opacity: float = 0.8, show_axes: bool = True) -
                 text=[f"{item.label}({px:g}, {py:g}, {pz:g})"], textposition="top center",
                 textfont=dict(color=color, size=13),
                 hovertemplate=f"{item.label}<br>x=%{{x}}<br>y=%{{y}}<br>z=%{{z}}<extra></extra>"))
+        elif isinstance(item, Axis):
+            _add_axis_3d(fig, item, label, rng)
         elif isinstance(item, Vector):
             vx, vy, vz = (*item.components, 0.0)[:3]
             length = float(np.sqrt(vx * vx + vy * vy + vz * vz)) or 1.0
@@ -271,7 +304,7 @@ def _add_surface_3d(fig, info: Analysis, label, i, color, rng, opacity, detail: 
             lighting=dict(ambient=0.5, diffuse=0.85, specular=0.4, roughness=0.4),
             hovertemplate="x=%{x:.2f}<br>y=%{y:.2f}<br>z=%{z:.2f}<extra>" + label + "</extra>"))
 
-    if info.kind == "Plane":
+    if info.kind == PLANE:
         _add_plane_intercepts(fig, info, color, rng)
 
 

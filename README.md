@@ -1,8 +1,8 @@
 # 📐 Coordinate Studio
 
 An interactive **2D and 3D coordinate system** app written in Python.
-Type equations, points and vectors, and see them drawn in a rotatable 3D space or on a 2D plane —
-together with an automatic analysis of each shape.
+Type equations, points, vectors or just `x`, `y`, `z`, and see them drawn in a rotatable 3D space or on a
+2D plane — each one explained automatically in simple English for students.
 
 ## Features
 
@@ -11,17 +11,18 @@ together with an automatic analysis of each shape.
   realistic lighting, intercept markers, points with guide lines to the floor and vector arrows.
   Drag to rotate, scroll to zoom.
 - **2D Plane** — lines, parabolas, circles, conics, trig curves, points and vectors on a grid.
-- **Analysis** for every equation:
-  - line → slope, intercepts, angle, distance from origin
-  - plane → normal vector, unit normal, intercepts, distance from origin
-  - circle / sphere → centre, radius, area / volume
-  - parabola → vertex, roots, derivative
-- Distance and midpoint between points; dot product, cross product and angle between vectors.
+- **Explanation in simple English** for everything typed, for example:
+  - `x` → "This is the X axis. It runs left to right (horizontal). Every point on it has y = 0 …"
+  - `2x + 4y + 6z = 12` → "This is a flat surface (a plane). It crosses the X axis at x = 6, the Y axis at y = 3 …"
+  - `y = x^2 - 4x + 3` → "This is a U-shaped curve (a parabola). It opens upwards. Its lowest point is at (2, -1) …"
+  - `A(3, 4, 5)` → "To reach it, start at the centre (0, 0, 0) and go 3 to the right, 4 up and 5 towards you."
+- Distances between points and angles between vectors, also in plain English.
 
 ## Input syntax (one item per line)
 
 | You type | Meaning |
 |---|---|
+| `x`, `y`, `z` (or `x axis`) | highlight that axis: X horizontal, Y vertical, Z towards you |
 | `2x + 4y + 6z = 12` | plane |
 | `2x + 4y + 6z` | same as `2x + 4y + 6z = 0` |
 | `z = x^2 - y^2` or `x^2 - y^2` | surface `z = f(x, y)` |
@@ -100,7 +101,7 @@ app.py                     web app (Flask) — the entry point for Vercel and ot
 web/index.html             the web page: Plotly.js graphs, KaTeX maths
 streamlit_app.py           Streamlit version of the same app
 coordinate/parser.py       turns text into equations, points, vectors and values (SymPy)
-coordinate/analysis.py     classifies equations and computes their properties
+coordinate/analysis.py     classifies equations and explains them in plain English
 coordinate/plotting.py     builds the interactive Plotly 2D / 3D figures
 coordinate/service.py      shared logic used by both versions
 tests/                     unit, web API and Streamlit app tests

@@ -31,7 +31,8 @@ def test_page_and_health(client):
 
 def test_compute_3d_example(client):
     data = post(client, text="2x + 4y + 6z\nA(1, 2, 3)", mode="3d")
-    assert data["cards"][0]["kind"] == "Plane"
+    assert data["explanations"][0]["kind"] == "Plane (flat surface)"
+    assert "Point A is at x = 1, y = 2, z = 3" in data["explanations"][1]["sentences"][0]
     assert data["figure"]["data"] and not data["errors"]
 
 
@@ -43,15 +44,25 @@ def test_plug_in_feature_is_removed(client):
     assert "Plug in numbers" not in page
 
 
-def test_syntax_help_is_removed(client):
-    assert "Syntax" not in client.get("/").data.decode()
+def test_syntax_help_and_examples_are_removed(client):
+    page = client.get("/").data.decode()
+    assert "Syntax" not in page and "Load example" not in page and "katex" not in page
+
+
+def test_typing_x_and_y_explains_the_axes(client):
+    data = post(client, text="x\ny\nz", mode="2d")
+    kinds = [c["kind"] for c in data["explanations"]]
+    assert kinds == ["Axis", "Axis"]  # z only exists in 3D
+    assert "left to right (horizontal)" in data["explanations"][0]["sentences"][0]
+    assert "up and down (vertical)" in data["explanations"][1]["sentences"][0]
+    assert any("only exists in 3D" in w for w in data["warnings"])
 
 
 def test_compute_2d_with_points_and_vectors(client):
     data = post(client, text="y = x^2\nA(1, 1)\nB(4, 5)\n<3, 4>\n<1, 0>", mode="2d")
-    assert data["cards"][0]["kind"] == "Parabola"
-    titles = [s["title"] for s in data["relations"]]
-    assert any("points" in t for t in titles) and any("Vectors" in t for t in titles)
+    assert data["explanations"][0]["kind"] == "Parabola (U shape)"
+    assert any("distance from A to B is 5" in m for m in data["measurements"])
+    assert any("angle between v1 and v2" in m for m in data["measurements"])
 
 
 @pytest.mark.parametrize("text", ["x^999999", "9^9^9^9", "1/0", "0 = 0", "foo(", "(1,2,3,4)", "x" * 10000])

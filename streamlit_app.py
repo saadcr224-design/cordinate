@@ -12,7 +12,7 @@ import html
 import streamlit as st
 
 from coordinate.parser import MAX_LINE_LENGTH, MAX_LINES
-from coordinate.service import EXAMPLES_2D, EXAMPLES_3D, build_figure, cards, prepare, relations
+from coordinate.service import STARTING_TEXT, build_figure, explanations, measurements, prepare
 
 st.set_page_config(page_title="Coordinate Studio", page_icon="📐", layout="wide")
 
@@ -36,6 +36,7 @@ st.markdown(
     .card { background: rgba(15,23,42,.75); border: 1px solid #1f2937; border-radius: 14px;
         padding: .9rem 1.1rem; margin-bottom: .8rem; box-shadow: 0 4px 20px rgba(0,0,0,.25); }
     .card h4 { margin: 0 0 .3rem 0; font-size: 1rem; }
+    .card p { margin: .35rem 0; line-height: 1.6; }
     .chip { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: .75rem;
         font-weight: 600; color: #0b1020; margin-left: 6px; }
     .stTextArea textarea { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 1.05rem;
@@ -51,8 +52,7 @@ st.markdown(
     """
     <div class="hero">
       <h1>📐 Coordinate Studio</h1>
-      <p>Type equations like <code>2x + 4y + 6z = 12</code>, points like <code>A(1, 2, 3)</code> or vectors like
-      <code>&lt;3, 4, 5&gt;</code> — see them in a live, rotatable 3D space or on a 2D plane.</p>
+      <p>Type in the box below. Everything you type is drawn on the graph and explained in simple English.</p>
     </div>
     """,
     unsafe_allow_html=True,
@@ -64,7 +64,6 @@ with st.sidebar:
     st.markdown("### ⚙️ View")
     mode = st.radio("Coordinate system", ["3D Space", "2D Plane"], horizontal=True, label_visibility="collapsed")
     is_3d = mode == "3D Space"
-    examples = EXAMPLES_3D if is_3d else EXAMPLES_2D
 
     rng = st.slider("Axis range  (±)", 2, 50, 10 if is_3d else 8)
     if is_3d:
@@ -73,18 +72,13 @@ with st.sidebar:
     else:
         show_grid = st.toggle("Show grid", True)
 
-    st.markdown("### ✨ Examples")
-    choice = st.selectbox("Load an example", list(examples), label_visibility="collapsed")
-    if st.button("Load example", width="stretch"):
-        st.session_state[f"input_{mode}"] = examples[choice]
-
 # ----------------------------------------------------------------------------- input
 
 key = f"input_{mode}"
 if key not in st.session_state:
-    st.session_state[key] = list(examples.values())[0]
+    st.session_state[key] = STARTING_TEXT["3d" if is_3d else "2d"]
 
-text = st.text_area("Equations, points and vectors — one per line", key=key, height=130,
+text = st.text_area("Type here — one thing per line", key=key, height=130,
                     max_chars=MAX_LINES * (MAX_LINE_LENGTH + 1))
 
 
@@ -108,20 +102,19 @@ with plot_col:
                if is_3d else "🖱️ Drag to pan · scroll to zoom · double-click to reset")
 
 with info_col:
-    st.markdown("### 🔍 Analysis")
+    st.markdown("### 💬 Explanation")
     if not prep.plot_items:
-        st.info("Enter an equation, point or vector to get started.")
+        st.info("Type something in the box to see it explained here.")
 
-    for card in cards(prep):
+    for card in explanations(prep, is_3d):
         st.markdown(
             f'<div class="card"><h4 style="color:{card["color"]}">{html.escape(card["label"])}'
-            f'<span class="chip" style="background:{card["color"]}">{card["kind"]}</span></h4></div>',
+            f'<span class="chip" style="background:{card["color"]}">{card["kind"]}</span></h4>'
+            + "".join(f"<p>{html.escape(sentence)}</p>" for sentence in card["sentences"]) + "</div>",
             unsafe_allow_html=True,
         )
-        for name, latex in card["facts"]:
-            st.markdown(f"**{name}:** ${latex}$")
 
-    for section in relations(prep):
-        st.markdown(f"#### {section['title']}")
-        for label, latex in section["rows"]:
-            st.markdown(f"**{label}:** ${latex}$")
+    if sentences := measurements(prep):
+        st.markdown("#### 📏 Measurements")
+        for sentence in sentences:
+            st.markdown(f"<p>{html.escape(sentence)}</p>", unsafe_allow_html=True)
