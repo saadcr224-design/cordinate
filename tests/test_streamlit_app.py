@@ -1,11 +1,13 @@
-"""Run the real Streamlit script headlessly and check that no input crashes the page."""
+"""Run the Streamlit version headlessly and check that no input crashes the page."""
 
 from pathlib import Path
 
 import pytest
-from streamlit.testing.v1 import AppTest
 
-APP = Path(__file__).resolve().parent.parent / "app.py"
+pytest.importorskip("streamlit", reason="the Streamlit version is optional (requirements-streamlit.txt)")
+from streamlit.testing.v1 import AppTest  # noqa: E402
+
+APP = Path(__file__).resolve().parent.parent / "streamlit_app.py"
 
 INPUTS = [
     "2x + 4y + 6z = 12\nA(1, 1, 1)\nx = 1, y = 1, z = 1",

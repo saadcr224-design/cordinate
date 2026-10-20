@@ -6,3 +6,6 @@ __pycache__/
 venv/
 .pytest_cache/
 tests/
+streamlit_app.py
+requirements-streamlit.txt
+.vercelignore

@@ -1,0 +1,4 @@
+# Optional Streamlit version of the app (streamlit_app.py):
+#   pip install -r requirements-streamlit.txt && streamlit run streamlit_app.py
+-r requirements.txt
+streamlit==1.66.0

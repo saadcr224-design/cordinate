@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Coordinate Studio</title>
+  <meta name="description" content="Interactive 2D and 3D coordinate system: plot equations, points and vectors and plug in numbers.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📐</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@4.1.1/plotly.min.js"></script>
+  <style>
+    :root {
+      --bg: #0b1020; --panel: rgba(15, 23, 42, .78); --panel-solid: #0f172a; --border: #1f2937;
+      --text: #e2e8f0; --muted: #94a3b8; --accent: #38bdf8; --accent2: #c084fc; --accent3: #f472b6;
+      --ok: #22c55e; --err: #f87171; --warn: #fbbf24;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; }
+    body {
+      font-family: Inter, "Segoe UI", system-ui, sans-serif; color: var(--text); min-height: 100vh;
+      background: radial-gradient(circle at 15% 0%, #1e1b4b 0%, var(--bg) 45%, #050814 100%) fixed var(--bg);
+    }
+    code, textarea, input[type=number] { font-family: "JetBrains Mono", Consolas, monospace; }
+    code { background: #111827; color: #a3e635; padding: 1px 6px; border-radius: 6px; font-size: .85em; }
+    .layout { display: grid; grid-template-columns: 290px minmax(0, 1fr); min-height: 100vh; }
+    aside {
+      background: linear-gradient(180deg, #111827 0%, var(--bg) 100%); border-right: 1px solid var(--border);
+      padding: 24px 22px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+    }
+    main { padding: 28px clamp(16px, 3vw, 44px) 60px; min-width: 0; }
+    h3 { margin: 22px 0 10px; font-size: 1.05rem; }
+    aside h3:first-child { margin-top: 0; }
+    label.field { display: block; font-size: .85rem; color: #cbd5e1; margin: 14px 0 6px; }
+    label.field output { float: right; color: var(--accent); }
+    input[type=range] { width: 100%; accent-color: var(--accent); }
+    .segmented { display: grid; grid-template-columns: 1fr 1fr; background: var(--panel-solid); border: 1px solid var(--border);
+      border-radius: 12px; padding: 4px; gap: 4px; }
+    .segmented button { border: 0; border-radius: 9px; padding: 9px 6px; background: transparent; color: var(--muted);
+      font: inherit; font-weight: 600; cursor: pointer; }
+    .segmented button[aria-pressed=true] { background: linear-gradient(135deg, #0ea5e9, #8b5cf6); color: white; }
+    .toggle { display: flex; align-items: center; gap: 10px; margin-top: 14px; font-size: .9rem; cursor: pointer; }
+    .toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
+    select, .btn { width: 100%; font: inherit; color: var(--text); background: var(--panel-solid); border: 1px solid #334155;
+      border-radius: 10px; padding: 9px 10px; }
+    .btn { margin-top: 8px; cursor: pointer; font-weight: 600; }
+    .btn:hover { border-color: var(--accent); }
+    .syntax { padding-left: 18px; margin: 0; font-size: .88rem; line-height: 1.9; color: #cbd5e1; }
+    .hero { padding: 20px 26px; border-radius: 18px; margin-bottom: 18px;
+      background: linear-gradient(135deg, rgba(56,189,248,.18), rgba(192,132,252,.18));
+      border: 1px solid rgba(148,163,184,.25); box-shadow: 0 10px 40px rgba(0,0,0,.35); }
+    .hero h1 { margin: 0; font-weight: 800; font-size: clamp(1.7rem, 4vw, 2.3rem); }
+    .hero h1 span { background: linear-gradient(90deg, var(--accent), var(--accent2), var(--accent3));
+      -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .hero p { margin: 6px 0 0; color: #cbd5e1; line-height: 1.6; }
+    .input-label { font-size: .85rem; color: #cbd5e1; display: flex; justify-content: space-between; margin-bottom: 6px; }
+    textarea { width: 100%; min-height: 130px; resize: vertical; font-size: 1.05rem; line-height: 1.5; color: var(--text);
+      background: var(--panel-solid); border: 1px solid #334155; border-radius: 12px; padding: 12px 14px; }
+    textarea:focus, input[type=number]:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 0; }
+    .messages { margin: 10px 0; display: grid; gap: 8px; }
+    .msg { border-radius: 10px; padding: 10px 14px; font-size: .92rem; }
+    .msg.error { background: rgba(248,113,113,.12); color: #fca5a5; border: 1px solid rgba(248,113,113,.35); }
+    .msg.warning { background: rgba(251,191,36,.10); color: #fde68a; border: 1px solid rgba(251,191,36,.3); }
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 18px 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,.25); margin: 16px 0; }
+    .panel h2 { margin: 0 0 4px; font-size: 1.25rem; }
+    .caption { color: var(--muted); font-size: .85rem; margin: 0 0 12px; }
+    .values { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 12px; }
+    .values label { font-size: .85rem; color: #cbd5e1; display: grid; gap: 6px; }
+    .values input { width: 100%; font-size: 1rem; color: var(--text); background: var(--panel-solid);
+      border: 1px solid #334155; border-radius: 10px; padding: 9px 10px; }
+    .eval { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; align-items: center;
+      padding: 12px 0; border-top: 1px solid var(--border); }
+    .eval:first-of-type { margin-top: 14px; }
+    .eval .name { font-weight: 700; grid-column: 1 / -1; }
+    .eval .math { overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
+    .badge { font-size: .85rem; border-radius: 10px; padding: 8px 12px; white-space: nowrap; color: var(--muted); }
+    .badge.on { background: rgba(34,197,94,.15); color: #86efac; border: 1px solid rgba(34,197,94,.35); }
+    .content { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(260px, 1fr); gap: 28px; align-items: start; }
+    #plot { width: 100%; height: 700px; border-radius: 14px; overflow: hidden; background: var(--bg); }
+    .hint { color: var(--muted); font-size: .82rem; margin-top: 8px; }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; margin-bottom: 14px; }
+    .card h4 { margin: 0 0 10px; font-size: 1rem; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .chip { padding: 2px 10px; border-radius: 999px; font-size: .75rem; font-weight: 600; color: var(--bg); }
+    .fact { margin: 8px 0; line-height: 1.5; overflow-x: auto; overflow-y: hidden; }
+    .fact b { color: #f1f5f9; font-weight: 600; }
+    .empty { color: var(--muted); background: rgba(56,189,248,.08); border: 1px solid rgba(56,189,248,.25);
+      border-radius: 10px; padding: 10px 14px; }
+    .status { font-size: .8rem; color: var(--muted); min-height: 1em; }
+    .menu { display: none; }
+    @media (max-width: 1100px) { .content { grid-template-columns: 1fr; } }
+    @media (max-width: 860px) {
+      .layout { grid-template-columns: 1fr; }
+      aside { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 16px; }
+      aside .collapsible { display: none; }
+      aside.open .collapsible { display: block; }
+      .menu { display: block; }
+      #plot { height: 480px; }
+      main { padding: 16px 16px 48px; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <aside id="sidebar">
+    <h3>⚙️ View</h3>
+    <div class="segmented" role="group" aria-label="Coordinate system">
+      <button type="button" data-mode="3d" aria-pressed="true">3D Space</button>
+      <button type="button" data-mode="2d" aria-pressed="false">2D Plane</button>
+    </div>
+    <button type="button" class="btn menu" id="menu" aria-expanded="false">More settings ▾</button>
+    <div class="collapsible">
+      <label class="field" for="range">Axis range (±) <output id="range-out">10</output></label>
+      <input type="range" id="range" min="2" max="50" step="1" value="10">
+      <div id="opacity-wrap">
+        <label class="field" for="opacity">Surface opacity <output id="opacity-out">0.80</output></label>
+        <input type="range" id="opacity" min="0.2" max="1" step="0.05" value="0.8">
+      </div>
+      <label class="toggle"><input type="checkbox" id="extra" checked> <span id="extra-label">Show coloured X / Y / Z axes</span></label>
+
+      <h3>✨ Examples</h3>
+      <select id="examples" aria-label="Load an example"></select>
+      <button type="button" class="btn" id="load">Load example</button>
+
+      <h3>📝 Syntax</h3>
+      <ul class="syntax">
+        <li><code>2x + 4y + 6z = 12</code> → plane</li>
+        <li><code>2x + 4y + 6z</code> → same as <code>… = 0</code></li>
+        <li><code>z = x^2 + y^2</code>, <code>y = sin(x)</code></li>
+        <li><code>x^2 + y^2 + z^2 = 9</code> → sphere</li>
+        <li><code>x = 1, y = 2, z = 3</code> → numbers to plug in</li>
+        <li><code>A(1, 2, 3)</code> or <code>(1, 2)</code> → point</li>
+        <li><code>&lt;1, 2, 3&gt;</code> or <code>v = &lt;1, 2&gt;</code> → vector</li>
+        <li>Functions: <code>sin cos tan sqrt exp ln abs</code>, constant <code>pi</code></li>
+        <li><code>#</code> starts a comment</li>
+      </ul>
+    </div>
+  </aside>
+
+  <main>
+    <section class="hero">
+      <h1>📐 <span>Coordinate Studio</span></h1>
+      <p>Type equations like <code>2x + 4y + 6z = 12</code>, points like <code>A(1, 2, 3)</code> or vectors like
+        <code>&lt;3, 4, 5&gt;</code> — see them in a live, rotatable 3D space or on a 2D plane.</p>
+    </section>
+
+    <label class="input-label" for="text"><span>Equations, points, vectors and values — one per line</span>
+      <span class="status" id="status"></span></label>
+    <textarea id="text" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+    <div class="messages" id="messages" aria-live="polite"></div>
+
+    <section class="panel">
+      <h2>🧮 Plug in numbers</h2>
+      <p class="caption" id="plug-caption"></p>
+      <div class="values" id="values"></div>
+      <div id="evaluations"></div>
+    </section>
+
+    <div class="content">
+      <section>
+        <div id="plot" role="img" aria-label="Graph"></div>
+        <p class="hint" id="plot-hint"></p>
+      </section>
+      <section>
+        <h3>🔍 Analysis</h3>
+        <div id="analysis"></div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script id="config" type="application/json">__CONFIG__</script>
+<script>
+(() => {
+  const CONFIG = JSON.parse(document.getElementById("config").textContent);
+  const $ = (id) => document.getElementById(id);
+  const store = {
+    get(key) { try { return localStorage.getItem(key); } catch { return null; } },
+    set(key, value) { try { localStorage.setItem(key, value); } catch { /* storage unavailable */ } },
+  };
+
+  const state = { mode: store.get("cs-mode") === "2d" ? "2d" : "3d", lastTyped: "{}", seq: 0, controller: null };
+  const text = $("text");
+  text.maxLength = CONFIG.maxChars;
+
+  function el(tag, attrs = {}, ...children) {
+    const node = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (k === "style") node.style.cssText = v; else if (k === "class") node.className = v; else node.setAttribute(k, v);
+    }
+    for (const child of children) node.append(child);
+    return node;
+  }
+
+  function tex(latex, display = false) {
+    const span = el("span");
+    if (window.katex) katex.render(latex, span, { throwOnError: false, displayMode: display });
+    else span.textContent = latex;
+    return span;
+  }
+
+  function names() { return state.mode === "3d" ? ["x", "y", "z"] : ["x", "y"]; }
+
+  // ------------------------------------------------------------------ controls
+
+  function buildValueInputs(values) {
+    const wrap = $("values");
+    wrap.replaceChildren();
+    for (const n of names()) {
+      const input = el("input", { type: "number", id: `value-${n}`, step: "1", min: "-1000000", max: "1000000",
+                                  inputmode: "decimal" });
+      input.value = values[n] ?? CONFIG.defaults[n];
+      input.addEventListener("input", schedule);
+      wrap.append(el("label", {}, n, input));
+    }
+  }
+
+  function currentValues() {
+    const values = {};
+    for (const n of names()) {
+      const v = parseFloat($(`value-${n}`).value);
+      values[n] = Number.isFinite(v) ? v : CONFIG.defaults[n];
+    }
+    return values;
+  }
+
+  function setMode(mode) {
+    state.mode = mode;
+    store.set("cs-mode", mode);
+    document.querySelectorAll("[data-mode]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === mode)));
+    $("opacity-wrap").style.display = mode === "3d" ? "" : "none";
+    $("extra-label").textContent = mode === "3d" ? "Show coloured X / Y / Z axes" : "Show grid";
+    $("range").value = mode === "3d" ? 10 : 8;
+    $("range-out").textContent = $("range").value;
+    $("plug-caption").textContent = `Type values here, or write a line like "x = 1, y = 2${mode === "3d" ? ", z = 3" : ""}" ` +
+      "above. Each equation is worked out step by step and the point ★ is drawn on the graph.";
+    $("plot-hint").textContent = mode === "3d"
+      ? "🖱️ Drag to rotate · scroll or pinch to zoom · double-click to reset · click legend items to hide them"
+      : "🖱️ Drag to pan · scroll or pinch to zoom · double-click to reset";
+    const examples = CONFIG.examples[mode];
+    $("examples").replaceChildren(...Object.keys(examples).map((name) => el("option", { value: name }, name)));
+    text.value = store.get(`cs-text-${mode}`) ?? Object.values(examples)[0];
+    state.lastTyped = "{}";
+    buildValueInputs(CONFIG.defaults);
+    if (window.Plotly) Plotly.purge($("plot"));
+    compute();
+  }
+
+  // ------------------------------------------------------------------ rendering
+
+  function renderMessages(data) {
+    $("messages").replaceChildren(
+      ...data.errors.map((m) => el("div", { class: "msg error" }, "⚠️ " + m)),
+      ...data.warnings.map((m) => el("div", { class: "msg warning" }, "ℹ️ " + m)),
+    );
+  }
+
+  function renderEvaluations(rows) {
+    const box = $("evaluations");
+    if (!rows.length) {
+      box.replaceChildren(el("p", { class: "empty", style: "margin-top:14px" },
+        "Add an equation above (e.g. 2x + 4y + 6z) to see it evaluated."));
+      return;
+    }
+    box.replaceChildren(...rows.map((r) => el("div", { class: "eval" },
+      el("div", { class: "name", style: `color:${r.color}` }, r.text),
+      el("div", { class: "math" }, tex(r.working, true)),
+      el("div", { class: "badge" + (r.on_graph ? " on" : "") }, r.on_graph ? "✅ On the graph" : "Not on the graph"),
+    )));
+  }
+
+  function renderAnalysis(data) {
+    const nodes = [];
+    for (const c of data.cards) {
+      nodes.push(el("div", { class: "card" },
+        el("h4", { style: `color:${c.color}` }, c.label, el("span", { class: "chip", style: `background:${c.color}` }, c.kind)),
+        ...c.facts.map(([name, latex]) => el("div", { class: "fact" }, el("b", {}, name + ": "), tex(latex))),
+      ));
+    }
+    for (const section of data.relations) {
+      nodes.push(el("div", { class: "card" }, el("h4", {}, section.title),
+        ...section.rows.map(([label, latex]) => el("div", { class: "fact" }, el("b", {}, label + ": "), tex(latex)))));
+    }
+    if (!nodes.length) nodes.push(el("p", { class: "empty" }, "Enter an equation, point or vector to get started."));
+    $("analysis").replaceChildren(...nodes);
+  }
+
+  function renderPlot(figure) {
+    const plot = $("plot");
+    if (!figure || !window.Plotly) return;
+    const layout = { ...figure.layout, height: plot.clientHeight, autosize: true };
+    if (window.innerWidth < 860) layout.legend = { ...layout.legend, font: { size: 10 } };
+    Plotly.react(plot, figure.data, layout, { displaylogo: false, scrollZoom: true, responsive: true });
+  }
+
+  // ------------------------------------------------------------------ server
+
+  async function compute() {
+    const seq = ++state.seq;
+    state.controller?.abort();
+    state.controller = new AbortController();
+    $("status").textContent = "Calculating…";
+    store.set(`cs-text-${state.mode}`, text.value);
+    try {
+      const response = await fetch("/api/compute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: state.controller.signal,
+        body: JSON.stringify({
+          text: text.value, mode: state.mode, range: +$("range").value, opacity: +$("opacity").value,
+          showExtra: $("extra").checked, values: currentValues(),
+        }),
+      });
+      if (!response.ok) throw new Error(`Server error ${response.status}`);
+      const data = await response.json();
+      if (seq !== state.seq) return;
+
+      // Values typed as "x = 1, y = 2" fill the boxes once, then the boxes stay editable.
+      const typed = JSON.stringify(data.typedValues);
+      if (typed !== state.lastTyped) {
+        state.lastTyped = typed;
+        if (Object.keys(data.typedValues).length) {
+          buildValueInputs({ ...currentValues(), ...data.typedValues });
+          return compute();
+        }
+      }
+      renderMessages(data);
+      renderEvaluations(data.evaluations);
+      renderAnalysis(data);
+      renderPlot(data.figure);
+      $("status").textContent = "";
+    } catch (err) {
+      if (err.name === "AbortError") return;
+      $("status").textContent = "";
+      $("messages").replaceChildren(el("div", { class: "msg error" },
+        "⚠️ Could not reach the server — check your connection and try again."));
+    }
+  }
+
+  let timer = null;
+  function schedule() { clearTimeout(timer); timer = setTimeout(compute, 350); }
+
+  // ------------------------------------------------------------------ wiring
+
+  document.querySelectorAll("[data-mode]").forEach((b) => b.addEventListener("click", () => {
+    if (b.dataset.mode !== state.mode) setMode(b.dataset.mode);
+  }));
+  text.addEventListener("input", schedule);
+  $("range").addEventListener("input", () => { $("range-out").textContent = $("range").value; schedule(); });
+  $("opacity").addEventListener("input", () => { $("opacity-out").textContent = (+$("opacity").value).toFixed(2); schedule(); });
+  $("extra").addEventListener("change", compute);
+  $("load").addEventListener("click", () => {
+    text.value = CONFIG.examples[state.mode][$("examples").value];
+    compute();
+  });
+  $("menu").addEventListener("click", () => {
+    const open = $("sidebar").classList.toggle("open");
+    $("menu").setAttribute("aria-expanded", String(open));
+    $("menu").textContent = open ? "Fewer settings ▴" : "More settings ▾";
+  });
+  window.addEventListener("resize", () => { if (window.Plotly) Plotly.Plots.resize($("plot")); });
+
+  // The libraries load with "defer", so start once everything is ready.
+  window.addEventListener("DOMContentLoaded", () => setMode(state.mode));
+})();
+</script>
+</body>
+</html>
