@@ -57,6 +57,26 @@ def _quadric_sphere(poly: sp.Poly, gens: tuple[sp.Symbol, ...]):
     return center, sp.nsimplify(r2)
 
 
+def _real_roots(f: sp.Expr) -> list[str]:
+    """LaTeX for the real roots of f(x) = 0 — exact up to degree 4, numeric above, none if not a polynomial.
+
+    General ``sp.solve`` is avoided: it can fail or run for minutes on inputs like sin(x) + x.
+    """
+    poly = _polynomial(f, (x,))
+    if poly is None or poly.degree() < 1 or poly.free_symbols - {x}:
+        return []
+    if poly.degree() <= 4:
+        roots = [r for r in sp.roots(poly, filter="R")]
+        if roots or poly.degree() <= 2:
+            return [_num(r) for r in sorted(roots, key=float)]
+    return sorted({f"{complex(r).real:.4g}" for r in poly.nroots() if abs(complex(r).imag) < 1e-9}, key=float)
+
+
+def _check_has_variables(implicit: sp.Expr) -> None:
+    if not implicit.free_symbols:
+        raise ValueError("is always true" if implicit == 0 else "has no solution — nothing to draw")
+
+
 def analyse_2d(eq: Equation) -> Analysis:
     if z in (eq.lhs - eq.rhs).free_symbols or z in eq.lhs.free_symbols:
         raise ValueError("uses z — switch to the 3D view to plot it")
@@ -66,6 +86,7 @@ def analyse_2d(eq: Equation) -> Analysis:
         implicit = y - eq.lhs
     else:
         implicit = sp.expand(eq.lhs - eq.rhs)
+    _check_has_variables(implicit)
 
     info = Analysis(kind="Curve", implicit=implicit)
     poly = _polynomial(implicit, (x, y))
@@ -115,9 +136,9 @@ def analyse_2d(eq: Equation) -> Analysis:
 
     if info.explicit is not None and info.explicit_var == y:
         info.facts.insert(0, ("Explicit form", _eq_latex(y, info.explicit)))
-        roots = [r for r in sp.solve(info.explicit, x) if r.is_real]
+        roots = _real_roots(info.explicit)
         if roots and info.kind != "Straight line":
-            info.facts.append(("x-intercepts", ",\\ ".join(_num(r) for r in roots[:6])))
+            info.facts.append(("x-intercepts", ",\\ ".join(roots[:6])))
         if info.kind not in ("Straight line",):
             info.facts.append(("Derivative  dy/dx", sp.latex(sp.simplify(sp.diff(info.explicit, x)))))
     return info
@@ -129,6 +150,7 @@ def analyse_3d(eq: Equation) -> Analysis:
         implicit = z - eq.lhs
     else:
         implicit = sp.expand(eq.lhs - eq.rhs)
+    _check_has_variables(implicit)
 
     info = Analysis(kind="Surface", implicit=implicit)
     poly = _polynomial(implicit, (x, y, z))

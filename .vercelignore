@@ -1,0 +1,8 @@
+# Not needed by the Vercel function (keeps the upload and bundle small).
+tests/
+streamlit_app.py
+requirements-streamlit.txt
+.streamlit/
+Dockerfile
+.dockerignore
+Procfile

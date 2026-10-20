@@ -113,3 +113,35 @@ def test_values_line():
     assert isinstance(parse_line("x = 1"), Equation)
     with pytest.raises(ParseError):
         parse_line("x = 1, x = 2")
+
+
+@pytest.mark.parametrize("bad", ["x^999999", "9^9^9^9", "((x^20)^20)^20", "1/0", "log(0)", "99999999999999999999"])
+def test_rejects_expensive_or_undefined_input(bad):
+    with pytest.raises(ParseError):
+        parse_line(bad)
+
+
+def test_input_limits():
+    _, errors = parse_lines("x + y = 1\n" * 30)
+    assert any("first" in e for e in errors)
+    _, errors = parse_lines("x + " * 100 + "1")
+    assert errors
+
+
+def test_non_polynomial_curve_is_still_analysed():
+    info = analyse_2d(parse_line("y = sin(x) + x"))
+    assert info.explicit is not None and "x-intercepts" not in facts(info)
+    assert analyse_2d(parse_line("y = x^3 - x")).facts
+
+
+@pytest.mark.parametrize("text", ["0 = 0", "1 = 2"])
+def test_equations_without_variables(text):
+    with pytest.raises(ValueError):
+        analyse_2d(parse_line(text))
+    with pytest.raises(ValueError):
+        analyse_3d(parse_line(text))
+
+
+def test_evaluate_undefined_values():
+    assert math.isnan(evaluate(parse_line("1/x").lhs, {"x": 0})[1])
+    assert math.isnan(evaluate(parse_line("sqrt(x)").lhs, {"x": -4})[1])

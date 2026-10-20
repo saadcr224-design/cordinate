@@ -1,0 +1,11 @@
+.git
+.github
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+tests/
+streamlit_app.py
+requirements-streamlit.txt
+.vercelignore
