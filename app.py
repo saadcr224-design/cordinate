@@ -5,6 +5,7 @@ Run with:  streamlit run app.py
 
 from __future__ import annotations
 
+import html
 import math
 from itertools import combinations
 
@@ -13,7 +14,7 @@ import sympy as sp
 import streamlit as st
 
 from coordinate.analysis import analyse_2d, analyse_3d
-from coordinate.parser import Equation, Point, Values, Vector, evaluate, parse_lines
+from coordinate.parser import MAX_LINE_LENGTH, MAX_LINES, Equation, Point, Values, Vector, evaluate, parse_lines
 from coordinate.plotting import PALETTE, figure_2d, figure_3d
 
 st.set_page_config(page_title="Coordinate Studio", page_icon="📐", layout="wide")
@@ -120,38 +121,53 @@ key = f"input_{mode}"
 if key not in st.session_state:
     st.session_state[key] = list(examples.values())[0]
 
-text = st.text_area("Equations, points, vectors and values — one per line", key=key, height=130)
-items, errors = parse_lines(text)
+text = st.text_area("Equations, points, vectors and values — one per line", key=key, height=130,
+                    max_chars=MAX_LINES * (MAX_LINE_LENGTH + 1))
+
+
+@st.cache_data(max_entries=256, show_spinner=False)
+def prepare(text: str, is_3d: bool):
+    """Parse and analyse the input. Cached, so moving a slider does not redo the maths."""
+    items, errors = parse_lines(text)
+    warnings, plot_items, analysed, typed_values = [], [], [], {}
+    for item in items:
+        if isinstance(item, Values):
+            typed_values.update(item.values)
+        elif isinstance(item, Equation):
+            try:
+                info = analyse_3d(item) if is_3d else analyse_2d(item)
+            except ValueError as exc:
+                warnings.append(f"`{item.text}` {exc}")
+                continue
+            except Exception:  # never let one odd equation take the whole page down
+                warnings.append(f"`{item.text}` could not be analysed")
+                continue
+            plot_items.append((item.text, info))
+            analysed.append((item, info))
+        elif not is_3d and len(getattr(item, "coords", getattr(item, "components", ()))) == 3:
+            warnings.append(f"`{item.text}` has 3 numbers — switch to 3D Space to plot it")
+        else:
+            plot_items.append((item.text, item))
+    return errors, warnings, plot_items, analysed, typed_values
+
+
+@st.cache_data(max_entries=64, show_spinner=False)
+def build_figure(text: str, is_3d: bool, rng: float, opacity: float, show_extra: bool, coords: tuple):
+    plot_items = prepare(text, is_3d)[2]
+    star = ("★ (" + ", ".join(f"{v:g}" for v in coords) + ")", Point("plug", "★", coords, highlight=True))
+    items = [*plot_items, star]
+    return figure_3d(items, rng, opacity, show_extra) if is_3d else figure_2d(items, rng, show_extra)
+
+
+def show(value: float) -> str:
+    return r"\text{undefined}" if math.isnan(value) else f"{value:.6g}"
+
+
+errors, warnings, plot_items, analysed, typed_values = prepare(text, is_3d)
 for err in errors:
     st.error(err, icon="⚠️")
-
-# Values typed as "x = 1, y = 2, z = 3" fill the plug-in boxes below.
-typed_values = {}
-for item in items:
-    if isinstance(item, Values):
-        typed_values.update(item.values)
-
-# Analyse equations and keep the plottable items in input order.
-plot_items, analysed = [], []
-for item in items:
-    if isinstance(item, Equation):
-        try:
-            info = analyse_3d(item) if is_3d else analyse_2d(item)
-        except (ValueError, NotImplementedError, TypeError) as exc:
-            st.warning(f"`{item.text}` — {exc}", icon="ℹ️")
-            continue
-        plot_items.append((item.text, info))
-        analysed.append((item, info))
-    elif isinstance(item, Point):
-        if not is_3d and len(item.coords) == 3:
-            st.warning(f"`{item.text}` has 3 coordinates — switch to 3D Space to plot it.", icon="ℹ️")
-            continue
-        plot_items.append((item.text, item))
-    elif isinstance(item, Vector):
-        if not is_3d and len(item.components) == 3:
-            st.warning(f"`{item.text}` has 3 components — switch to 3D Space to plot it.", icon="ℹ️")
-            continue
-        plot_items.append((item.text, item))
+for warning in warnings:
+    st.warning(warning, icon="ℹ️")
 
 # ----------------------------------------------------------------------------- plug in numbers
 
@@ -163,7 +179,8 @@ with st.container(border=True):
     defaults = {"x": 1.0, "y": 2.0, "z": 3.0}
     cols = st.columns(len(names))
     # The widget is keyed by its typed value, so editing the text box resets the box to that value.
-    values = {n: col.number_input(n, value=float(typed_values.get(n, defaults[n])), step=1.0, format="%g",
+    values = {n: col.number_input(n, value=min(max(float(typed_values.get(n, defaults[n])), -1e6), 1e6),
+                                  min_value=-1e6, max_value=1e6, step=1.0, format="%g",
                                   key=f"plug_{mode}_{n}_{typed_values.get(n)}")
               for n, col in zip(names, cols)}
 
@@ -175,11 +192,12 @@ with st.container(border=True):
         c1, c2 = st.columns([4, 1], vertical_alignment="center")
         lhs_work, lhs_val = evaluate(eq.lhs, values)
         with c1:
-            st.markdown(f'<span style="color:{color};font-weight:700">{eq.text}</span>', unsafe_allow_html=True)
-            working = f"{sp.latex(eq.lhs)} \\;=\\; {lhs_work} \\;=\\; \\mathbf{{{lhs_val:.6g}}}"
+            st.markdown(f'<span style="color:{color};font-weight:700">{html.escape(eq.text)}</span>',
+                        unsafe_allow_html=True)
+            working = f"{sp.latex(eq.lhs)} \\;=\\; {lhs_work} \\;=\\; \\mathbf{{{show(lhs_val)}}}"
             if eq.has_equals:
                 _, rhs_val = evaluate(eq.rhs, values)
-                working += f"\\qquad \\text{{(right side }} = {rhs_val:.6g}\\text{{)}}"
+                working += f"\\qquad \\text{{(right side }} = {show(rhs_val)}\\text{{)}}"
             st.latex(working)
         with c2:
             residual = evaluate(info.implicit, values)[1]
@@ -189,7 +207,6 @@ with st.container(border=True):
                 st.caption("Point is not on the graph")
 
 coords = tuple(values[n] for n in names)
-plot_items.append(("★ (" + ", ".join(f"{v:g}" for v in coords) + ")", Point("plug", "★", coords, highlight=True)))
 
 # ----------------------------------------------------------------------------- layout
 
@@ -197,7 +214,7 @@ plot_col, info_col = st.columns([2.2, 1], gap="large")
 
 with plot_col:
     try:
-        fig = (figure_3d(plot_items, rng, opacity, show_axes) if is_3d else figure_2d(plot_items, rng, show_grid))
+        fig = build_figure(text, is_3d, rng, opacity if is_3d else 1.0, show_axes if is_3d else show_grid, coords)
         st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "scrollZoom": True})
     except Exception as exc:  # keep the app alive on an unplottable expression
         st.error(f"Could not draw the graph: {exc}")
@@ -214,7 +231,7 @@ with info_col:
         if not hasattr(entry, "kind"):
             continue
         st.markdown(
-            f'<div class="card"><h4 style="color:{color}">{label}'
+            f'<div class="card"><h4 style="color:{color}">{html.escape(label)}'
             f'<span class="chip" style="background:{color}">{entry.kind}</span></h4></div>',
             unsafe_allow_html=True,
         )

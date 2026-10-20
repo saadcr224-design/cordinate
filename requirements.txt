@@ -1,4 +1,5 @@
-streamlit>=1.40
-plotly>=5.20
-sympy>=1.12
-numpy>=1.26
+# Exact versions the app is tested with, so every deployment builds the same way.
+streamlit==1.66.0
+plotly==7.1.0
+sympy==1.14.0
+numpy==2.3.5  # newest release that still supports Python 3.11

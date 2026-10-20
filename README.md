@@ -43,6 +43,35 @@ streamlit run app.py
 
 The app opens in your browser at http://localhost:8501.
 
+## Deploy
+
+The app is ready for any platform that runs Python or Docker. Versions are pinned in
+`requirements.txt` (Python 3.11 – 3.13 supported, 3.12 recommended via `.python-version`).
+
+**Streamlit Community Cloud** (free, easiest): go to [share.streamlit.io](https://share.streamlit.io),
+click *Create app*, pick this repository, branch `main` and main file `app.py`, then *Deploy*.
+
+**Render**: *New → Web Service* → connect this repo.
+- Build command: `pip install -r requirements.txt`
+- Start command: `streamlit run app.py --server.port=$PORT --server.address=0.0.0.0`
+
+Or choose *Docker* as the runtime and Render uses the included `Dockerfile`.
+
+**Railway / Heroku**: connect the repo; the included `Procfile` starts the app on the platform's `$PORT`.
+
+**Docker** (Fly.io, Google Cloud Run, Hugging Face Spaces, a VPS, ...):
+
+```bash
+docker build -t coordinate-studio .
+docker run -p 8501:8501 coordinate-studio          # then open http://localhost:8501
+```
+
+The container listens on `$PORT` (default 8501) and exposes a health check at `/_stcore/health`.
+
+**Built-in protections for public use**: input is limited to 20 lines of 200 characters, and expressions that
+would hang the server (huge powers such as `x^999999`, power towers such as `9^9^9^9`) are rejected
+with a friendly message. Results are cached, the developer menu is hidden and tracebacks are not shown to visitors.
+
 ## Tests
 
 ```bash
@@ -57,5 +86,6 @@ app.py                  Streamlit user interface
 coordinate/parser.py    turns text into equations, points and vectors (SymPy)
 coordinate/analysis.py  classifies equations and computes their properties
 coordinate/plotting.py  builds the interactive Plotly 2D / 3D figures
-tests/                  unit tests
+tests/                  unit tests + headless app tests (streamlit AppTest)
+Dockerfile, Procfile    deployment entry points
 ```

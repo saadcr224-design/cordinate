@@ -7,3 +7,11 @@ textColor = "#e2e8f0"
 
 [browser]
 gatherUsageStats = false
+
+[server]
+headless = true
+
+[client]
+# Public deployment: hide the developer menu / "Deploy" button and don't show tracebacks to visitors.
+toolbarMode = "viewer"
+showErrorDetails = "none"

@@ -14,6 +14,9 @@ HIGHLIGHT = "#facc15"  # the plugged-in point
 AXIS_COLORS = {"x": "#ef4444", "y": "#22c55e", "z": "#3b82f6"}
 SURFACE_SCALES = ["Ice", "Plotly3", "Viridis", "Sunsetdark", "Tealgrn", "Magenta", "Teal", "Oranges"]
 
+# Arrays are sent to the browser as float32 to keep the page light (float64 doubles the payload).
+F32 = np.float32
+
 BG = "#0b1020"
 GRID = "rgba(148, 163, 184, 0.15)"
 FONT = dict(family="Inter, Segoe UI, sans-serif", color="#e2e8f0")
@@ -99,11 +102,11 @@ def _add_curve_2d(fig: go.Figure, info: Analysis, label: str, color: str, rng: f
         x0 = float(info.explicit)
         fig.add_trace(go.Scatter(x=[x0, x0], y=[-rng * 1.5, rng * 1.5], mode="lines", name=label, line=line))
     else:
-        grid = np.linspace(-rng * 1.2, rng * 1.2, 500)
+        grid = np.linspace(-rng * 1.2, rng * 1.2, 360)
         gx, gy = np.meshgrid(grid, grid)
         values = _lambdify(info.implicit, (x, y))(gx, gy)
         fig.add_trace(go.Contour(
-            x=grid, y=grid, z=values, name=label, showlegend=True, showscale=False,
+            x=grid.astype(F32), y=grid.astype(F32), z=values.astype(F32), name=label, showlegend=True, showscale=False,
             contours=dict(start=0, end=0, size=1, coloring="lines"),
             colorscale=[[0, color], [1, color]], line=dict(width=3.5), hoverinfo="skip"))
 
@@ -199,19 +202,21 @@ def _add_surface_3d(fig, info: Analysis, label, i, color, rng, opacity) -> None:
         gz = _lambdify(info.explicit, (x, y))(gx, gy)
         gz[(gz < -rng) | (gz > rng)] = np.nan  # clip to the visible cube
         fig.add_trace(go.Surface(
-            x=gx, y=gy, z=gz, name=label, showlegend=True, showscale=False, opacity=opacity,
+            x=grid.astype(F32), y=grid.astype(F32), z=gz.astype(F32), name=label, showlegend=True, showscale=False,
+            opacity=opacity,
             colorscale=scale, cmin=-rng, cmax=rng,
             lighting=dict(ambient=0.55, diffuse=0.8, specular=0.35, roughness=0.5, fresnel=0.2),
             lightposition=dict(x=100, y=200, z=1000),
             contours=dict(z=dict(show=True, usecolormap=True, project_z=False, width=1)),
             hovertemplate="x=%{x:.2f}<br>y=%{y:.2f}<br>z=%{z:.2f}<extra>" + label + "</extra>"))
     else:
-        n = 48
+        n = 42
         grid = np.linspace(-rng, rng, n)
         gx, gy, gz = np.meshgrid(grid, grid, grid, indexing="ij")
         values = _lambdify(info.implicit, (x, y, z))(gx, gy, gz)
         fig.add_trace(go.Isosurface(
-            x=gx.ravel(), y=gy.ravel(), z=gz.ravel(), value=values.ravel(), isomin=0, isomax=0,
+            x=gx.ravel().astype(F32), y=gy.ravel().astype(F32), z=gz.ravel().astype(F32),
+            value=values.ravel().astype(F32), isomin=0, isomax=0,
             surface_count=1, caps=dict(x_show=False, y_show=False, z_show=False), name=label,
             showlegend=True, showscale=False, opacity=opacity, colorscale=[[0, color], [1, color]],
             lighting=dict(ambient=0.5, diffuse=0.85, specular=0.4, roughness=0.4),
