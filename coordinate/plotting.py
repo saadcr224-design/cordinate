@@ -99,6 +99,16 @@ def figure_2d(items, rng: float, show_grid: bool = True) -> go.Figure:
         hoverlabel=dict(bgcolor="#1e293b", font=dict(color="white")),
         dragmode="pan",
     )
+    # Arrowheads and labels at the positive ends: X points right, Y points up.
+    for name, (ax, ay) in {"x": (1, 0), "y": (0, 1)}.items():
+        color = AXIS_COLORS[name]
+        fig.add_annotation(x=rng * ax, y=rng * ay, ax=rng * 0.9 * ax, ay=rng * 0.9 * ay, xref="x", yref="y",
+                           axref="x", ayref="y", showarrow=True, arrowhead=2, arrowsize=1.6, arrowwidth=2.5,
+                           arrowcolor=color, text="")
+        fig.add_annotation(x=rng * ax, y=rng * ay, xref="x", yref="y", showarrow=False,
+                           text=f"<b>+{name.upper()}</b>", font=dict(color=color, size=16),
+                           xanchor="right" if ax else "left", yanchor="bottom" if ax else "top",
+                           xshift=-4 if ax else 8, yshift=6 if ax else -2)
     return fig
 
 
@@ -151,9 +161,9 @@ def figure_3d(items, rng: float, opacity: float = 0.8, show_axes: bool = True) -
             _add_surface_3d(fig, item, label, i, color, rng, opacity, detail)
         elif isinstance(item, Point):
             px, py, pz = (*item.coords, 0.0)[:3]
-            # Dashed projection lines down to the xy-plane and onto the axes.
+            # Dashed lines straight down to the floor (the y = 0 plane), then along it to the X and Z axes.
             fig.add_trace(go.Scatter3d(
-                x=[px, px, None, px, px, None, px, 0], y=[py, py, None, py, 0, None, py, py], z=[pz, 0, None, 0, 0, None, 0, 0],
+                x=[px, px, None, px, px, None, px, 0], y=[py, 0, None, 0, 0, None, 0, 0], z=[pz, pz, None, pz, 0, None, pz, pz],
                 mode="lines", line=dict(color=color, width=3, dash="dash"), hoverinfo="skip", showlegend=False))
             fig.add_trace(go.Scatter3d(
                 x=[px], y=[py], z=[pz], mode="markers+text", name=label,
@@ -175,15 +185,25 @@ def figure_3d(items, rng: float, opacity: float = 0.8, show_axes: bool = True) -
                 x=[vx], y=[vy], z=[vz], mode="text", text=[f"{item.label}"], textposition="top center",
                 textfont=dict(color=color, size=14), showlegend=False, hoverinfo="skip"))
 
-    axis = dict(range=[-rng, rng], backgroundcolor="rgba(15,23,42,0.6)", gridcolor=GRID,
-                showbackground=True, zeroline=False, tickfont=dict(color="#94a3b8"))
+    # With the drawn axes on, their own numbers replace the tick labels on the edges of the box.
+    # Leave room around the drawn axes for their arrowheads and +X / +Y / +Z labels.
+    pad = 1.2 if show_axes else 1.0
+    axis = dict(range=[-rng * pad, rng * pad], backgroundcolor="rgba(15,23,42,0.6)",
+                gridcolor=GRID, showgrid=not show_axes,  # the numbered axes replace the busy box grid
+                showbackground=True, zeroline=False, tickfont=dict(color="#94a3b8"),
+                showticklabels=not show_axes, dtick=_nice_step(rng))
+    titles = {n: dict(text="" if show_axes else n.upper(), font=dict(color=AXIS_COLORS[n], size=16)) for n in "xyz"}
     fig.update_layout(
         paper_bgcolor=BG, font=FONT, height=720, margin=dict(l=0, r=0, t=30, b=0),
         scene=dict(
-            xaxis=dict(axis, title=dict(text="X", font=dict(color=AXIS_COLORS["x"], size=16))),
-            yaxis=dict(axis, title=dict(text="Y", font=dict(color=AXIS_COLORS["y"], size=16))),
-            zaxis=dict(axis, title=dict(text="Z", font=dict(color=AXIS_COLORS["z"], size=16))),
-            aspectmode="cube", camera=dict(eye=dict(x=1.6, y=1.4, z=1.0)),
+            xaxis=dict(axis, title=titles["x"]),
+            yaxis=dict(axis, title=titles["y"]),
+            zaxis=dict(axis, title=titles["z"]),
+            # An orthographic camera ignores its distance, so the scene is enlarged through the aspect ratio.
+            aspectmode="manual", aspectratio=dict(x=1.45, y=1.45, z=1.45),
+            # Textbook view for students: X to the right, Y straight up, Z coming towards the viewer.
+            # Orthographic, so parallel lines stay parallel as in a drawing.
+            camera=dict(up=dict(x=0, y=1, z=0), eye=dict(x=0.9, y=0.6, z=1.9), projection=dict(type="orthographic")),
         ),
         legend=dict(bgcolor="rgba(15,23,42,0.7)", bordercolor="#334155", borderwidth=1, x=0.01, y=0.99),
         hoverlabel=dict(bgcolor="#1e293b", font=dict(color="white")),
@@ -192,21 +212,35 @@ def figure_3d(items, rng: float, opacity: float = 0.8, show_axes: bool = True) -
 
 
 def _add_axes_3d(fig: go.Figure, rng: float) -> None:
-    ends = {"x": (1, 0, 0), "y": (0, 1, 0), "z": (0, 0, 1)}
-    for name, (ux, uy, uz) in ends.items():
+    """X, Y and Z axes drawn through the origin: solid positive half with an arrow, dashed negative half,
+    numbered tick marks and +/− labels at the ends, so students can read coordinates off them."""
+    step = _nice_step(rng)
+    ticks = [t for t in np.arange(-rng, rng + step / 2, step) if abs(t) > 1e-9 and abs(t) < rng - 1e-9]
+    tick_position = {"x": "bottom center", "y": "middle left", "z": "bottom center"}
+    for name, unit in {"x": (1, 0, 0), "y": (0, 1, 0), "z": (0, 0, 1)}.items():
         color = AXIS_COLORS[name]
-        fig.add_trace(go.Scatter3d(
-            x=[-rng * ux, rng * ux], y=[-rng * uy, rng * uy], z=[-rng * uz, rng * uz],
-            mode="lines", line=dict(color=color, width=5), hoverinfo="skip", showlegend=False))
+        u = np.array(unit, dtype=float)
+
+        def along(values):
+            return {"x": [v * u[0] for v in values], "y": [v * u[1] for v in values], "z": [v * u[2] for v in values]}
+
+        fig.add_trace(go.Scatter3d(**along([0, rng]), mode="lines", line=dict(color=color, width=7),
+                                   hoverinfo="skip", showlegend=False))
+        fig.add_trace(go.Scatter3d(**along([-rng, 0]), mode="lines", line=dict(color=color, width=4, dash="dash"),
+                                   hoverinfo="skip", showlegend=False))
         fig.add_trace(go.Cone(
-            x=[rng * ux], y=[rng * uy], z=[rng * uz], u=[ux], v=[uy], w=[uz], anchor="tip",
-            sizemode="absolute", sizeref=rng * 0.07, colorscale=[[0, color], [1, color]],
+            x=[rng * u[0]], y=[rng * u[1]], z=[rng * u[2]], u=[u[0]], v=[u[1]], w=[u[2]], anchor="tip",
+            sizemode="absolute", sizeref=rng * 0.08, colorscale=[[0, color], [1, color]],
             showscale=False, hoverinfo="skip"))
         fig.add_trace(go.Scatter3d(
-            x=[rng * ux * 1.08], y=[rng * uy * 1.08], z=[rng * uz * 1.08], mode="text", text=[f"<b>{name.upper()}</b>"],
-            textfont=dict(color=color, size=18), hoverinfo="skip", showlegend=False))
-    fig.add_trace(go.Scatter3d(x=[0], y=[0], z=[0], mode="markers+text", text=["O"], textposition="bottom left",
-                               marker=dict(size=4, color="white"), textfont=dict(color="#cbd5e1"),
+            **along(ticks), mode="markers+text", marker=dict(size=3, color=color),
+            text=[f"{t:g}" for t in ticks], textposition=tick_position[name],
+            textfont=dict(color=color, size=11), hoverinfo="skip", showlegend=False))
+        fig.add_trace(go.Scatter3d(
+            **along([rng * 1.13, -rng * 1.1]), mode="text", text=[f"<b>+{name.upper()}</b>", f"−{name.upper()}"],
+            textfont=dict(color=color, size=[20, 13]), hoverinfo="skip", showlegend=False))
+    fig.add_trace(go.Scatter3d(x=[0], y=[0], z=[0], mode="markers+text", text=["O (0, 0, 0)"], textposition="bottom right",
+                               marker=dict(size=5, color="white"), textfont=dict(color="#e2e8f0", size=12),
                                hoverinfo="skip", showlegend=False))
 
 

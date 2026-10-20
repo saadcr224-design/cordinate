@@ -118,7 +118,7 @@ with plot_col:
         st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "scrollZoom": True})
     except Exception as exc:  # keep the app alive on an unplottable expression
         st.error(f"Could not draw the graph: {exc}")
-    st.caption("🖱️ Drag to rotate / pan · scroll to zoom · double-click to reset · click legend items to hide them"
+    st.caption("X → right · Y ↑ up · Z ↙ towards you  ·  🖱️ Drag to rotate · scroll to zoom · double-click to reset"
                if is_3d else "🖱️ Drag to pan · scroll to zoom · double-click to reset")
 
 with info_col:

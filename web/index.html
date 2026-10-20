@@ -189,7 +189,7 @@
     $("range").value = mode === "3d" ? 10 : 8;
     $("range-out").textContent = $("range").value;
     $("plot-hint").textContent = mode === "3d"
-      ? "🖱️ Drag to rotate · scroll or pinch to zoom · double-click to reset · click legend items to hide them"
+      ? "X → right · Y ↑ up · Z ↙ towards you  ·  🖱️ Drag to rotate · scroll or pinch to zoom · double-click to reset"
       : "🖱️ Drag to pan · scroll or pinch to zoom · double-click to reset";
     const examples = CONFIG.examples[mode];
     $("examples").replaceChildren(...Object.keys(examples).map((name) => el("option", { value: name }, name)));
