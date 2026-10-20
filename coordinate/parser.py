@@ -30,6 +30,7 @@ _TRANSFORMS = standard_transformations + (implicit_multiplication_application, c
 _SAFE = re.compile(r"^[0-9a-zA-Z\s\.\+\-\*/\^\(\)=,]*$")
 _WORD = re.compile(r"[a-zA-Z_]+")
 _POINT = re.compile(r"^\s*([A-Za-z]\w*)?\s*\(\s*([^()]*)\)\s*$")
+_ASSIGN = re.compile(r"^\s*([xyz])\s*=\s*([^=,;]+?)\s*$")
 _VECTOR = re.compile(r"^\s*([A-Za-z]\w*)?\s*(?:=\s*)?<\s*([^<>]*)>\s*$")
 
 _REPLACEMENTS = {"−": "-", "–": "-", "×": "*", "·": "*", "÷": "/", "²": "^2", "³": "^3", "π": "pi"}
@@ -57,6 +58,7 @@ class Point:
     text: str
     label: str
     coords: tuple[float, ...]
+    highlight: bool = False  # the "plug in numbers" point
 
 
 @dataclass
@@ -65,6 +67,13 @@ class Vector:
     label: str
     components: tuple[float, ...]
     origin: tuple[float, ...] = field(default_factory=tuple)
+
+
+@dataclass
+class Values:
+    """Numbers to plug in, written like ``x = 1, y = 2, z = 3``."""
+    text: str
+    values: dict[str, float]
 
 
 def _clean(text: str) -> str:
@@ -105,7 +114,22 @@ def _parse_numbers(body: str, text: str) -> tuple[float, ...]:
     return tuple(values)
 
 
-def parse_line(text: str, index: int = 0) -> Equation | Point | Vector:
+def _parse_values(raw: str) -> Values | None:
+    parts = re.split(r"[,;]", raw)
+    if len(parts) < 2:
+        return None
+    values = {}
+    for part in parts:
+        if not (m := _ASSIGN.match(part)) or m.group(1) in values:
+            return None
+        value = parse_expression(m.group(2))
+        if value.free_symbols:
+            return None
+        values[m.group(1)] = float(value)
+    return Values(raw, values)
+
+
+def parse_line(text: str, index: int = 0) -> Equation | Point | Vector | Values:
     """Parse one line of user input into an equation, point or vector.
 
     ``index`` numbers the default label (P1, v1, ...) of unnamed points and vectors.
@@ -120,8 +144,10 @@ def parse_line(text: str, index: int = 0) -> Equation | Point | Vector:
             raise ParseError(f"'{raw}' looks like a function call, not a point")
         return Point(raw, label, _parse_numbers(pt.group(2), raw))
 
+    if values := _parse_values(raw):
+        return values
     if raw.count("=") > 1:
-        raise ParseError(f"'{raw}' has more than one '='")
+        raise ParseError(f"'{raw}' has more than one '=' — to plug in numbers write e.g. 'x = 1, y = 2, z = 3'")
     if "=" in raw:
         left, right = raw.split("=")
         return Equation(raw, parse_expression(left), parse_expression(right), True)
@@ -146,7 +172,10 @@ def parse_lines(text: str) -> tuple[list[Equation | Point | Vector], list[str]]:
 def evaluate(expr: sp.Expr, values: dict[str, float]) -> tuple[str, float]:
     """Substitute values into ``expr``; return the substituted working and the result."""
     subs = {SYMBOLS[k]: v for k, v in values.items() if k in SYMBOLS}
-    working = sp.latex(expr.subs({s: sp.Symbol(f"({_fmt(v)})") for s, v in subs.items()}, simultaneous=True))
+    # Render each variable as its value instead of substituting, so terms keep their order
+    # and are not merged (2x + 4y + 6z at 4, 1, 1 → 2·(4) + 4·(1) + 6·(1)).
+    names = {s: rf"\left({_fmt(v)}\right)" for s, v in subs.items()}
+    working = sp.latex(expr, symbol_names=names, mul_symbol="dot")
     result = expr.subs(subs)
     return working, float(sp.N(result)) if result.is_number else float("nan")
 

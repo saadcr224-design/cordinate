@@ -13,14 +13,14 @@ import sympy as sp
 import streamlit as st
 
 from coordinate.analysis import analyse_2d, analyse_3d
-from coordinate.parser import Equation, Point, Vector, evaluate, parse_lines
+from coordinate.parser import Equation, Point, Values, Vector, evaluate, parse_lines
 from coordinate.plotting import PALETTE, figure_2d, figure_3d
 
 st.set_page_config(page_title="Coordinate Studio", page_icon="📐", layout="wide")
 
 EXAMPLES_3D = {
     "Plane  2x + 4y + 6z = 12": "2x + 4y + 6z = 12\nA(1, 1, 1)",
-    "Your example  2x + 4y + 6z": "2x + 4y + 6z",
+    "Your example  2x + 4y + 6z": "2x + 4y + 6z\nx = 1, y = 2, z = 3",
     "Sphere": "x^2 + y^2 + z^2 = 16\nP(0, 0, 4)",
     "Saddle  z = x² − y²": "z = (x^2 - y^2) / 4",
     "Ripple": "z = 2 sin(sqrt(x^2 + y^2))",
@@ -28,7 +28,7 @@ EXAMPLES_3D = {
     "Points & distance": "A(1, 2, 3)\nB(-3, 4, -2)\nC(4, -4, 1)",
 }
 EXAMPLES_2D = {
-    "Line  2x + 4y = 8": "2x + 4y = 8\nA(2, 1)",
+    "Line  2x + 4y = 8": "2x + 4y = 8\nx = 2, y = 1",
     "Parabola": "y = x^2 - 4x + 3",
     "Circle": "x^2 + y^2 = 16\n(0, 4)",
     "Sine wave": "y = 3 sin(x)",
@@ -106,6 +106,7 @@ with st.sidebar:
 - `2x + 4y + 6z` → same as `… = 0`
 - `z = x^2 + y^2`, `y = sin(x)`
 - `x^2 + y^2 + z^2 = 9` → sphere
+- `x = 1, y = 2, z = 3` → numbers to plug in
 - `A(1, 2, 3)` or `(1, 2)` → point
 - `<1, 2, 3>` or `v = <1, 2>` → vector
 - Functions: `sin cos tan sqrt exp ln abs`, constant `pi`
@@ -119,10 +120,16 @@ key = f"input_{mode}"
 if key not in st.session_state:
     st.session_state[key] = list(examples.values())[0]
 
-text = st.text_area("Equations, points and vectors — one per line", key=key, height=130)
+text = st.text_area("Equations, points, vectors and values — one per line", key=key, height=130)
 items, errors = parse_lines(text)
 for err in errors:
     st.error(err, icon="⚠️")
+
+# Values typed as "x = 1, y = 2, z = 3" fill the plug-in boxes below.
+typed_values = {}
+for item in items:
+    if isinstance(item, Values):
+        typed_values.update(item.values)
 
 # Analyse equations and keep the plottable items in input order.
 plot_items, analysed = [], []
@@ -145,6 +152,44 @@ for item in items:
             st.warning(f"`{item.text}` has 3 components — switch to 3D Space to plot it.", icon="ℹ️")
             continue
         plot_items.append((item.text, item))
+
+# ----------------------------------------------------------------------------- plug in numbers
+
+with st.container(border=True):
+    st.markdown("#### 🧮 Plug in numbers")
+    st.caption("Type values here, or write a line like `x = 1, y = 2" + (", z = 3" if is_3d else "") +
+               "` above. Each equation is worked out step by step and the point ★ is drawn on the graph.")
+    names = ["x", "y", "z"] if is_3d else ["x", "y"]
+    defaults = {"x": 1.0, "y": 2.0, "z": 3.0}
+    cols = st.columns(len(names))
+    # The widget is keyed by its typed value, so editing the text box resets the box to that value.
+    values = {n: col.number_input(n, value=float(typed_values.get(n, defaults[n])), step=1.0, format="%g",
+                                  key=f"plug_{mode}_{n}_{typed_values.get(n)}")
+              for n, col in zip(names, cols)}
+
+    if not analysed:
+        st.info("Add an equation above (e.g. `2x + 4y + 6z`) to see it evaluated.")
+    labels = [label for label, _ in plot_items]
+    for eq, info in analysed:
+        color = PALETTE[labels.index(eq.text) % len(PALETTE)]
+        c1, c2 = st.columns([4, 1], vertical_alignment="center")
+        lhs_work, lhs_val = evaluate(eq.lhs, values)
+        with c1:
+            st.markdown(f'<span style="color:{color};font-weight:700">{eq.text}</span>', unsafe_allow_html=True)
+            working = f"{sp.latex(eq.lhs)} \\;=\\; {lhs_work} \\;=\\; \\mathbf{{{lhs_val:.6g}}}"
+            if eq.has_equals:
+                _, rhs_val = evaluate(eq.rhs, values)
+                working += f"\\qquad \\text{{(right side }} = {rhs_val:.6g}\\text{{)}}"
+            st.latex(working)
+        with c2:
+            residual = evaluate(info.implicit, values)[1]
+            if not math.isnan(residual) and abs(residual) < 1e-9:
+                st.success("On the graph", icon="✅")
+            else:
+                st.caption("Point is not on the graph")
+
+coords = tuple(values[n] for n in names)
+plot_items.append(("★ (" + ", ".join(f"{v:g}" for v in coords) + ")", Point("plug", "★", coords, highlight=True)))
 
 # ----------------------------------------------------------------------------- layout
 
@@ -176,7 +221,7 @@ with info_col:
         for name, latex in entry.facts:
             st.markdown(f"**{name}:** ${latex}$")
 
-    points = [e for _, e in plot_items if isinstance(e, Point)]
+    points = [e for _, e in plot_items if isinstance(e, Point) and not e.highlight]
     vectors = [e for _, e in plot_items if isinstance(e, Vector)]
 
     if len(points) >= 2:
@@ -200,38 +245,3 @@ with info_col:
                 st.markdown(f"**{a.label} × {b.label}** $= \\langle {cross} \\rangle$")
     for v in vectors:
         st.markdown(f"**|{v.label}|** $= {float(np.linalg.norm(v.components)):.4g}$")
-
-# ----------------------------------------------------------------------------- evaluator
-
-st.markdown("---")
-st.markdown("### 🧮 Plug in numbers")
-st.caption("Give values for x, y" + (", z" if is_3d else "") +
-           " and see each expression worked out step by step — and whether the point lies on the graph.")
-
-cols = st.columns(3 if is_3d else 2)
-values = {"x": cols[0].number_input("x", value=1.0, step=1.0, format="%g"),
-          "y": cols[1].number_input("y", value=2.0, step=1.0, format="%g")}
-if is_3d:
-    values["z"] = cols[2].number_input("z", value=3.0, step=1.0, format="%g")
-
-if not analysed:
-    st.info("Add an equation above to evaluate it.")
-labels = [label for label, _ in plot_items]
-for eq, info in analysed:
-    color = PALETTE[labels.index(eq.text) % len(PALETTE)]
-    with st.container(border=True):
-        st.markdown(f'<span style="color:{color};font-weight:700">{eq.text}</span>', unsafe_allow_html=True)
-        c1, c2 = st.columns([3, 1])
-        lhs_work, lhs_val = evaluate(eq.lhs, values)
-        with c1:
-            st.latex(f"{sp.latex(eq.lhs)} \\;=\\; {lhs_work} \\;=\\; {lhs_val:.6g}")
-            if eq.has_equals:
-                _, rhs_val = evaluate(eq.rhs, values)
-                st.latex(f"\\text{{right side: }} {sp.latex(eq.rhs)} \\;=\\; {rhs_val:.6g}")
-        with c2:
-            st.metric("Value", f"{lhs_val:.6g}")
-            residual = evaluate(info.implicit, values)[1]
-            if not math.isnan(residual) and abs(residual) < 1e-9:
-                st.success("Point is ON the graph", icon="✅")
-            else:
-                st.caption("Point is not on the graph")

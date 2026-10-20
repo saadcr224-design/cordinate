@@ -4,7 +4,7 @@ import pytest
 import sympy as sp
 
 from coordinate.analysis import analyse_2d, analyse_3d
-from coordinate.parser import Equation, ParseError, Point, Vector, evaluate, parse_line, parse_lines, x, y, z
+from coordinate.parser import Equation, ParseError, Point, Values, Vector, evaluate, parse_line, parse_lines, x, y, z
 from coordinate.plotting import figure_2d, figure_3d
 
 
@@ -43,6 +43,9 @@ def test_evaluate_example():
     eq = parse_line("2x + 4y + 6z")
     _, value = evaluate(eq.lhs, {"x": 1, "y": 2, "z": 3})
     assert value == 28
+    working, value = evaluate(eq.lhs, {"x": 4, "y": 1, "z": 1})
+    assert value == 18
+    assert working == r"2 \cdot \left(4\right) + 4 \cdot \left(1\right) + 6 \cdot \left(1\right)"
 
 
 def test_plane_analysis():
@@ -100,3 +103,13 @@ def test_figures_build():
 def test_default_labels_count_per_kind():
     items, _ = parse_lines("x + y = 1\n(1, 2)\n<1, 2>\n(3, 4)\n<3, 4>")
     assert [i.label for i in items[1:]] == ["P1", "v1", "P2", "v2"]
+
+
+def test_values_line():
+    v = parse_line("x = 1, y = 2, z = 3")
+    assert isinstance(v, Values) and v.values == {"x": 1, "y": 2, "z": 3}
+    assert parse_line("x=-2; y=0.5").values == {"x": -2, "y": 0.5}
+    # A single assignment is still an equation (the plane / line x = 1).
+    assert isinstance(parse_line("x = 1"), Equation)
+    with pytest.raises(ParseError):
+        parse_line("x = 1, x = 2")

@@ -10,6 +10,7 @@ from .analysis import Analysis
 from .parser import Point, Vector, x, y, z
 
 PALETTE = ["#38bdf8", "#f472b6", "#a3e635", "#fbbf24", "#c084fc", "#fb7185", "#2dd4bf", "#f97316"]
+HIGHLIGHT = "#facc15"  # the plugged-in point
 AXIS_COLORS = {"x": "#ef4444", "y": "#22c55e", "z": "#3b82f6"}
 SURFACE_SCALES = ["Ice", "Plotly3", "Viridis", "Sunsetdark", "Tealgrn", "Magenta", "Teal", "Oranges"]
 
@@ -44,12 +45,15 @@ def figure_2d(items, rng: float, show_grid: bool = True) -> go.Figure:
             _add_curve_2d(fig, item, label, color, rng)
         elif isinstance(item, Point):
             px, py = item.coords[:2]
+            if item.highlight:
+                color = HIGHLIGHT
             fig.add_trace(go.Scatter(
                 x=[px, px, None, 0, px], y=[0, py, None, py, py], mode="lines",
                 line=dict(color=color, width=1, dash="dot"), hoverinfo="skip", showlegend=False))
             fig.add_trace(go.Scatter(
                 x=[px], y=[py], mode="markers+text", name=label,
-                marker=dict(size=12, color=color, line=dict(color="white", width=2)),
+                marker=dict(size=20 if item.highlight else 12, color=color, symbol="star" if item.highlight else "circle",
+                            line=dict(color="white", width=2)),
                 text=[f"{item.label}({px:g}, {py:g})"], textposition="top right",
                 textfont=dict(color=color, size=13),
                 hovertemplate=f"{item.label}<br>x=%{{x}}<br>y=%{{y}}<extra></extra>"))
@@ -125,13 +129,16 @@ def figure_3d(items, rng: float, opacity: float = 0.8, show_axes: bool = True) -
             _add_surface_3d(fig, item, label, i, color, rng, opacity)
         elif isinstance(item, Point):
             px, py, pz = (*item.coords, 0.0)[:3]
+            if item.highlight:
+                color = HIGHLIGHT
             # Dashed projection lines down to the xy-plane and onto the axes.
             fig.add_trace(go.Scatter3d(
                 x=[px, px, None, px, px, None, px, 0], y=[py, py, None, py, 0, None, py, py], z=[pz, 0, None, 0, 0, None, 0, 0],
                 mode="lines", line=dict(color=color, width=3, dash="dash"), hoverinfo="skip", showlegend=False))
             fig.add_trace(go.Scatter3d(
                 x=[px], y=[py], z=[pz], mode="markers+text", name=label,
-                marker=dict(size=7, color=color, line=dict(color="white", width=2)),
+                marker=dict(size=10 if item.highlight else 7, color=color,
+                            symbol="diamond" if item.highlight else "circle", line=dict(color="white", width=2)),
                 text=[f"{item.label}({px:g}, {py:g}, {pz:g})"], textposition="top center",
                 textfont=dict(color=color, size=13),
                 hovertemplate=f"{item.label}<br>x=%{{x}}<br>y=%{{y}}<br>z=%{{z}}<extra></extra>"))
