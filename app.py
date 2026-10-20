@@ -20,6 +20,9 @@ from coordinate.service import (
     DEFAULT_VALUES, EXAMPLES_2D, EXAMPLES_3D, cards, clamp_value, evaluations, figure_json, prepare, relations,
 )
 
+# Vercel rejects function responses above 4.5 MB; plotting keeps figures far smaller, this is a safety net.
+MAX_RESPONSE_BYTES = 4_000_000
+
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 64 * 1024  # requests are small JSON documents
 
@@ -75,7 +78,7 @@ def compute():
         figure = "null"
         errors.append("Could not draw the graph for this input.")
 
-    payload = json.dumps({
+    result = {
         "errors": errors,
         "warnings": prep.warnings,
         "typedValues": {n: clamp_value(v) for n, v in prep.typed_values.items() if n in names},
@@ -83,7 +86,12 @@ def compute():
         "evaluations": evaluations(prep, values),
         "cards": cards(prep),
         "relations": relations(prep),
-    })
+    }
+    payload = json.dumps(result)
+    if len(payload) + len(figure) > MAX_RESPONSE_BYTES:
+        figure = "null"
+        result["errors"] = [*errors, "The graph is too detailed to send — remove some equations."]
+        payload = json.dumps(result)
     # The figure is already JSON (and cached), so splice it in rather than decoding and re-encoding megabytes.
     return Response(payload[:-1] + ', "figure": ' + figure + "}", mimetype="application/json")
 

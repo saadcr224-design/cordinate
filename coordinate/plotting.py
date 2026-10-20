@@ -17,6 +17,12 @@ SURFACE_SCALES = ["Ice", "Plotly3", "Viridis", "Sunsetdark", "Tealgrn", "Magenta
 # Arrays are sent to the browser as float32 to keep the page light (float64 doubles the payload).
 F32 = np.float32
 
+# How many numbers all shapes of one kind may send together. One shape gets full detail and many
+# shapes share the budget, so a response stays well under Vercel's 4.5 MB limit however much is drawn.
+BUDGET_2D_IMPLICIT = 300_000
+BUDGET_3D_EXPLICIT = 150_000
+BUDGET_3D_IMPLICIT = 250_000
+
 BG = "#0b1020"
 GRID = "rgba(148, 163, 184, 0.15)"
 FONT = dict(family="Inter, Segoe UI, sans-serif", color="#e2e8f0")
@@ -38,14 +44,27 @@ def _lambdify(expr: sp.Expr, args):
 
 # ----------------------------------------------------------------------------- 2D
 
+def _resolution(budget: int, count: int, cost_power: int, low: int, high: int, per_point: int = 1) -> int:
+    """Grid size n so that ``count`` shapes costing ``per_point * n**cost_power`` numbers each fit the budget."""
+    if count <= 1:
+        return high
+    return int(min(high, max(low, (budget / (count * per_point)) ** (1 / cost_power))))
+
+
+def _is_explicit(item, var) -> bool:
+    return isinstance(item, Analysis) and item.explicit is not None and item.explicit_var == var
+
+
 def figure_2d(items, rng: float, show_grid: bool = True) -> go.Figure:
     fig = go.Figure()
+    implicit = sum(isinstance(item, Analysis) and item.explicit is None for _, item in items)
+    n_implicit = _resolution(BUDGET_2D_IMPLICIT, implicit, 2, low=120, high=360)
     color_i = 0
     for label, item in items:
         color = PALETTE[color_i % len(PALETTE)]
         color_i += 1
         if isinstance(item, Analysis):
-            _add_curve_2d(fig, item, label, color, rng)
+            _add_curve_2d(fig, item, label, color, rng, n_implicit)
         elif isinstance(item, Point):
             px, py = item.coords[:2]
             if item.highlight:
@@ -87,7 +106,7 @@ def figure_2d(items, rng: float, show_grid: bool = True) -> go.Figure:
     return fig
 
 
-def _add_curve_2d(fig: go.Figure, info: Analysis, label: str, color: str, rng: float) -> None:
+def _add_curve_2d(fig: go.Figure, info: Analysis, label: str, color: str, rng: float, n_implicit: int) -> None:
     line = dict(color=color, width=3.5)
     if info.explicit is not None and info.explicit_var == y:
         xs = np.linspace(-rng * 1.5, rng * 1.5, 3000)
@@ -96,13 +115,13 @@ def _add_curve_2d(fig: go.Figure, info: Analysis, label: str, color: str, rng: f
         # Break the line at vertical asymptotes instead of joining them.
         jumps = np.abs(np.diff(ys)) > rng * 2
         ys[1:][jumps] = np.nan
-        fig.add_trace(go.Scatter(x=xs, y=ys, mode="lines", name=label, line=line,
+        fig.add_trace(go.Scatter(x=xs.astype(F32), y=ys.astype(F32), mode="lines", name=label, line=line,
                                  hovertemplate="x=%{x:.3f}<br>y=%{y:.3f}<extra></extra>"))
     elif info.explicit is not None and info.explicit_var == x:
         x0 = float(info.explicit)
         fig.add_trace(go.Scatter(x=[x0, x0], y=[-rng * 1.5, rng * 1.5], mode="lines", name=label, line=line))
     else:
-        grid = np.linspace(-rng * 1.2, rng * 1.2, 360)
+        grid = np.linspace(-rng * 1.2, rng * 1.2, n_implicit)
         gx, gy = np.meshgrid(grid, grid)
         values = _lambdify(info.implicit, (x, y))(gx, gy)
         fig.add_trace(go.Contour(
@@ -126,10 +145,14 @@ def figure_3d(items, rng: float, opacity: float = 0.8, show_axes: bool = True) -
     fig = go.Figure()
     if show_axes:
         _add_axes_3d(fig, rng)
+    explicit = sum(_is_explicit(item, z) for _, item in items)
+    implicit = sum(isinstance(item, Analysis) for _, item in items) - explicit
+    detail = (_resolution(BUDGET_3D_EXPLICIT, explicit, 2, low=60, high=220),
+              _resolution(BUDGET_3D_IMPLICIT, implicit, 3, low=14, high=40, per_point=4))
     for i, (label, item) in enumerate(items):
         color = PALETTE[i % len(PALETTE)]
         if isinstance(item, Analysis):
-            _add_surface_3d(fig, item, label, i, color, rng, opacity)
+            _add_surface_3d(fig, item, label, i, color, rng, opacity, detail)
         elif isinstance(item, Point):
             px, py, pz = (*item.coords, 0.0)[:3]
             if item.highlight:
@@ -194,10 +217,10 @@ def _add_axes_3d(fig: go.Figure, rng: float) -> None:
                                hoverinfo="skip", showlegend=False))
 
 
-def _add_surface_3d(fig, info: Analysis, label, i, color, rng, opacity) -> None:
+def _add_surface_3d(fig, info: Analysis, label, i, color, rng, opacity, detail: tuple[int, int]) -> None:
     scale = SURFACE_SCALES[i % len(SURFACE_SCALES)]
     if info.explicit is not None and info.explicit_var == z:
-        grid = np.linspace(-rng, rng, 220)
+        grid = np.linspace(-rng, rng, detail[0])
         gx, gy = np.meshgrid(grid, grid)
         gz = _lambdify(info.explicit, (x, y))(gx, gy)
         gz[(gz < -rng) | (gz > rng)] = np.nan  # clip to the visible cube
@@ -210,8 +233,7 @@ def _add_surface_3d(fig, info: Analysis, label, i, color, rng, opacity) -> None:
             contours=dict(z=dict(show=True, usecolormap=True, project_z=False, width=1)),
             hovertemplate="x=%{x:.2f}<br>y=%{y:.2f}<br>z=%{z:.2f}<extra>" + label + "</extra>"))
     else:
-        n = 42
-        grid = np.linspace(-rng, rng, n)
+        grid = np.linspace(-rng, rng, detail[1])
         gx, gy, gz = np.meshgrid(grid, grid, grid, indexing="ij")
         values = _lambdify(info.implicit, (x, y, z))(gx, gy, gz)
         fig.add_trace(go.Isosurface(

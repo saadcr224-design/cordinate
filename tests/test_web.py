@@ -61,3 +61,22 @@ def test_malformed_requests(client, body):
 
 def test_non_json_request(client):
     assert client.post("/api/compute", data="hello").status_code == 400
+
+
+@pytest.mark.parametrize("mode, text", [
+    ("3d", "\n".join(f"x^2 + y^2 + z^2 = {k}" for k in range(1, 21))),
+    ("3d", "\n".join([f"x^2 + y^2 + z^2 = {k}" for k in range(1, 11)] + [f"z = x^2/{k} - y" for k in range(1, 11)])),
+    ("2d", "\n".join(f"x^2 + y^2 = {k}" for k in range(1, 21))),
+])
+def test_response_fits_vercel_limit(client, mode, text):
+    # Vercel rejects function responses larger than 4.5 MB.
+    response = client.post("/api/compute", json={"text": text, "mode": mode, "range": 50})
+    assert response.status_code == 200
+    assert len(response.data) < 3_000_000
+    assert response.get_json()["figure"] is not None
+
+
+def test_oversized_figure_is_dropped_with_message(client, monkeypatch):
+    monkeypatch.setattr(web, "MAX_RESPONSE_BYTES", 1000)
+    data = post(client, text="x^2 + y^2 + z^2 = 9", mode="3d")
+    assert data["figure"] is None and "too detailed" in data["errors"][-1]
