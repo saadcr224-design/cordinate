@@ -9,11 +9,12 @@ Run locally with:  flask --app app run      (or)  gunicorn app:app
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 from pathlib import Path
 
-from flask import Flask, Response, jsonify, request
+from flask import Flask, Response, jsonify, request, send_from_directory
 
 from coordinate.parser import MAX_LINE_LENGTH, MAX_LINES
 from coordinate.service import STARTING_TEXT, explanations, figure_json, measurements, prepare
@@ -24,7 +25,8 @@ MAX_RESPONSE_BYTES = 4_000_000
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 64 * 1024  # requests are small JSON documents
 
-_PAGE = (Path(__file__).resolve().parent / "web" / "index.html").read_text(encoding="utf-8")
+_WEB = Path(__file__).resolve().parent / "web"
+_PAGE = (_WEB / "index.html").read_text(encoding="utf-8")
 _PAGE = _PAGE.replace("__CONFIG__", json.dumps({
     "startingText": STARTING_TEXT,
     "maxChars": MAX_LINES * (MAX_LINE_LENGTH + 1),
@@ -42,6 +44,27 @@ def _number(value, default: float, low: float, high: float) -> float:
 @app.get("/")
 def index() -> Response:
     return Response(_PAGE, mimetype="text/html")
+
+
+# Files that make the site an installable app (PWA) on PCs and phones.
+_VERSION = hashlib.sha256(b"".join(f.read_bytes() for f in sorted(_WEB.rglob("*")) if f.is_file())).hexdigest()[:12]
+_SERVICE_WORKER = (_WEB / "sw.js").read_text(encoding="utf-8").replace("__VERSION__", _VERSION)
+
+
+@app.get("/sw.js")
+def service_worker() -> Response:
+    # Served from the site root so it can control every page; never cached, so updates arrive at once.
+    return Response(_SERVICE_WORKER, mimetype="application/javascript", headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/manifest.webmanifest")
+def manifest() -> Response:
+    return send_from_directory(_WEB, "manifest.webmanifest", mimetype="application/manifest+json")
+
+
+@app.get("/icons/<path:name>")
+def icons(name: str) -> Response:
+    return send_from_directory(_WEB / "icons", name, max_age=7 * 24 * 3600)
 
 
 @app.get("/api/health")

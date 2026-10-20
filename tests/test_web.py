@@ -101,3 +101,27 @@ def test_oversized_figure_is_dropped_with_message(client, monkeypatch):
     monkeypatch.setattr(web, "MAX_RESPONSE_BYTES", 1000)
     data = post(client, text="x^2 + y^2 + z^2 = 9", mode="3d")
     assert data["figure"] is None and "too detailed" in data["errors"][-1]
+
+
+def test_installable_app_files(client):
+    page = client.get("/").data.decode()
+    assert 'rel="manifest" href="/manifest.webmanifest"' in page and 'rel="apple-touch-icon"' in page
+
+    manifest = client.get("/manifest.webmanifest")
+    assert manifest.status_code == 200 and manifest.mimetype == "application/manifest+json"
+    data = manifest.get_json(force=True)
+    assert data["display"] == "standalone" and data["start_url"] == "/"
+    sizes = {icon["sizes"] for icon in data["icons"]}
+    assert {"192x192", "512x512"} <= sizes and any(i["purpose"] == "maskable" for i in data["icons"])
+    for icon in data["icons"]:
+        response = client.get(icon["src"])
+        assert response.status_code == 200 and response.mimetype == "image/png"
+
+    worker = client.get("/sw.js")
+    assert worker.status_code == 200 and worker.mimetype == "application/javascript"
+    assert "__VERSION__" not in worker.data.decode() and worker.headers["Cache-Control"] == "no-cache"
+
+
+def test_icon_route_cannot_leave_the_icons_folder(client):
+    assert client.get("/icons/../../app.py").status_code == 404
+    assert client.get("/icons/%2e%2e/index.html").status_code == 404

@@ -2,10 +2,18 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Coordinate Studio</title>
   <meta name="description" content="Interactive 2D and 3D coordinate system: plot equations, points and vectors.">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📐</text></svg>">
+  <!-- Installable app (PWA) on PCs, Android and iPhone / iPad -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0b1020">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Coordinates">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono&display=swap">
   <script defer src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@4.1.1/plotly.min.js"></script>
@@ -19,11 +27,16 @@
     html, body { margin: 0; }
     body {
       font-family: Inter, "Segoe UI", system-ui, sans-serif; color: var(--text); min-height: 100vh;
-      background: radial-gradient(circle at 15% 0%, #1e1b4b 0%, var(--bg) 45%, #050814 100%) fixed var(--bg);
+      background: var(--bg); -webkit-text-size-adjust: 100%;
     }
+    /* A fixed layer rather than background-attachment: fixed, which iPhones do not support. */
+    body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      background: radial-gradient(circle at 15% 0%, #1e1b4b 0%, var(--bg) 45%, #050814 100%); }
     code, textarea { font-family: "JetBrains Mono", Consolas, monospace; }
     code { background: #111827; color: #a3e635; padding: 1px 6px; border-radius: 6px; font-size: .85em; }
-    .layout { display: grid; grid-template-columns: 290px minmax(0, 1fr); min-height: 100vh; }
+    .layout { display: grid; grid-template-columns: 290px minmax(0, 1fr); min-height: 100vh;
+      /* Keep clear of the notch and home bar when installed on a phone. */
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
     aside {
       background: linear-gradient(180deg, #111827 0%, var(--bg) 100%); border-right: 1px solid var(--border);
       padding: 24px 22px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
@@ -63,6 +76,20 @@
     .content { margin-top: 18px; display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(260px, 1fr); gap: 28px; align-items: start; }
     #plot { width: 100%; height: 700px; border-radius: 14px; overflow: hidden; background: var(--bg); }
     .hint { color: var(--muted); font-size: .82rem; margin-top: 8px; }
+    .plot-wrap { position: relative; }
+    /* On touch screens the graph starts locked so a swipe scrolls the page; tap it to move the graph. */
+    .touch-lock { position: absolute; inset: 0; display: none; align-items: flex-end; justify-content: center;
+      padding: 0 0 16px; background: transparent; border: 0; border-radius: 14px; cursor: pointer; }
+    .touch-lock span { background: rgba(15,23,42,.88); color: var(--text); border: 1px solid #334155;
+      border-radius: 999px; padding: 9px 16px; font: 600 .9rem Inter, system-ui, sans-serif; }
+    .lock-btn { position: absolute; top: 10px; right: 10px; display: none; font: 600 .85rem Inter, system-ui, sans-serif;
+      color: var(--text); background: rgba(15,23,42,.9); border: 1px solid #334155; border-radius: 999px; padding: 8px 14px; }
+    .plot-wrap.touch.locked .touch-lock { display: flex; }
+    .plot-wrap.touch:not(.locked) .lock-btn { display: block; }
+    .install { display: none; margin-top: 14px; }
+    .install.show { display: block; }
+    .install .btn { background: linear-gradient(135deg, #0ea5e9, #8b5cf6); border: 0; color: white; }
+    .install-tip { color: #cbd5e1; font-size: .85rem; line-height: 1.5; margin: 8px 0 0; }
     .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; margin-bottom: 14px; }
     .card h4 { margin: 0 0 10px; font-size: 1rem; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
     .chip { padding: 2px 10px; border-radius: 999px; font-size: .75rem; font-weight: 600; color: var(--bg); }
@@ -78,7 +105,7 @@
       aside .collapsible { display: none; }
       aside.open .collapsible { display: block; }
       .menu { display: block; }
-      #plot { height: 480px; }
+      #plot { height: min(480px, 62vh); }
       main { padding: 16px 16px 48px; }
     }
   </style>
@@ -101,6 +128,10 @@
       </div>
       <label class="toggle"><input type="checkbox" id="extra" checked> <span id="extra-label">Show coloured X / Y / Z axes</span></label>
     </div>
+    <div class="install" id="install">
+      <button type="button" class="btn" id="install-btn" hidden>⬇️ Install app</button>
+      <p class="install-tip" id="install-tip"></p>
+    </div>
   </aside>
 
   <main>
@@ -117,7 +148,11 @@
 
     <div class="content">
       <section>
-        <div id="plot" role="img" aria-label="Graph"></div>
+        <div class="plot-wrap locked" id="plot-wrap">
+          <div id="plot" role="img" aria-label="Graph"></div>
+          <button type="button" class="touch-lock" id="touch-lock"><span>👆 Tap to move the graph</span></button>
+          <button type="button" class="lock-btn" id="lock-btn">✓ Done</button>
+        </div>
         <p class="hint" id="plot-hint"></p>
       </section>
       <section>
@@ -140,6 +175,7 @@
 
   const state = { mode: store.get("cs-mode") === "2d" ? "2d" : "3d", seq: 0, controller: null };
   const text = $("text");
+  const TOUCH = matchMedia("(pointer: coarse)").matches;
   // Saved text from before the explanations existed is not reused, so everyone first sees the axes explained.
   const TEXT_KEY = "cs-text-v2";
   text.maxLength = CONFIG.maxChars;
@@ -163,9 +199,10 @@
     $("extra-label").textContent = mode === "3d" ? "Show coloured X / Y / Z axes" : "Show grid";
     $("range").value = mode === "3d" ? 10 : 8;
     $("range-out").textContent = $("range").value;
-    $("plot-hint").textContent = mode === "3d"
-      ? "X → right · Y ↑ up · Z ↙ towards you  ·  🖱️ Drag to rotate · scroll or pinch to zoom · double-click to reset"
-      : "🖱️ Drag to pan · scroll or pinch to zoom · double-click to reset";
+    const how = TOUCH
+      ? (mode === "3d" ? "Tap the graph, then drag to turn it and pinch to zoom." : "Tap the graph, then drag to move it and pinch to zoom.")
+      : (mode === "3d" ? "🖱️ Drag to rotate · scroll to zoom · double-click to reset" : "🖱️ Drag to move · scroll to zoom · double-click to reset");
+    $("plot-hint").textContent = (mode === "3d" ? "X → right · Y ↑ up · Z ↙ towards you  ·  " : "") + how;
     text.value = store.get(`${TEXT_KEY}-${mode}`) ?? CONFIG.startingText[mode];
     if (window.Plotly) Plotly.purge($("plot"));
     compute();
@@ -198,7 +235,10 @@
     if (!figure || !window.Plotly) return;
     const layout = { ...figure.layout, height: plot.clientHeight, autosize: true };
     if (window.innerWidth < 860) layout.legend = { ...layout.legend, font: { size: 10 } };
-    Plotly.react(plot, figure.data, layout, { displaylogo: false, scrollZoom: true, responsive: true });
+    Plotly.react(plot, figure.data, layout, {
+      displaylogo: false, scrollZoom: true, responsive: true,
+      displayModeBar: !TOUCH, // the toolbar only clutters a small touch screen
+    });
   }
 
   // ------------------------------------------------------------------ server
@@ -230,8 +270,9 @@
     } catch (err) {
       if (err.name === "AbortError") return;
       $("status").textContent = "";
-      $("messages").replaceChildren(el("div", { class: "msg error" },
-        "⚠️ Could not reach the server — check your connection and try again."));
+      $("messages").replaceChildren(el("div", { class: "msg error" }, navigator.onLine
+        ? "⚠️ Could not reach the server — check your connection and try again."
+        : "📴 You are offline. Connect to the internet to draw new graphs."));
     }
   }
 
@@ -253,6 +294,45 @@
     $("menu").textContent = open ? "Fewer settings ▴" : "More settings ▾";
   });
   window.addEventListener("resize", () => { if (window.Plotly) Plotly.Plots.resize($("plot")); });
+  window.addEventListener("online", compute);
+
+  // Touch screens: the graph starts locked so swiping scrolls the page; tap to use it, "Done" to lock again.
+  $("plot-wrap").classList.toggle("touch", TOUCH);
+  $("touch-lock").addEventListener("click", () => $("plot-wrap").classList.remove("locked"));
+  $("lock-btn").addEventListener("click", () => $("plot-wrap").classList.add("locked"));
+
+  // ------------------------------------------------------------------ install as an app
+
+  const installed = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  const isApple = /iphone|ipad|ipod/i.test(navigator.userAgent)
+    || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  let installPrompt = null;
+
+  // Chrome / Edge on PC and Android offer a real install button.
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    installPrompt = event;
+    $("install-btn").hidden = false;
+    $("install-tip").textContent = "Use it like a normal app, from your home screen or desktop.";
+    $("install").classList.add("show");
+  });
+  $("install-btn").addEventListener("click", async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    await installPrompt.userChoice;
+    installPrompt = null;
+    $("install").classList.remove("show");
+  });
+  window.addEventListener("appinstalled", () => $("install").classList.remove("show"));
+  // iPhone / iPad have no install button: explain how to add it to the home screen.
+  if (isApple && !installed) {
+    $("install-tip").textContent = "📲 To install: tap the Share button, then “Add to Home Screen”.";
+    $("install").classList.add("show");
+  }
+
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => { /* still works as a website */ }));
+  }
 
   // The libraries load with "defer", so start once everything is ready.
   window.addEventListener("DOMContentLoaded", () => setMode(state.mode));
