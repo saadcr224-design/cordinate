@@ -6,8 +6,9 @@ together with an automatic analysis of each shape.
 
 ## Features
 
-- **3D Space** — planes, spheres and any surface (`z = f(x, y)` or implicit `F(x, y, z) = c`), with
-  coloured X / Y / Z axes, realistic lighting, intercept markers, points with projection lines and vector arrows.
+- **3D Space** — planes, spheres and any surface (`z = f(x, y)` or implicit `F(x, y, z) = c`), shown in a
+  textbook view for students: **X to the right, Y straight up, Z towards you**, with numbered, coloured axes,
+  realistic lighting, intercept markers, points with guide lines to the floor and vector arrows.
   Drag to rotate, scroll to zoom.
 - **2D Plane** — lines, parabolas, circles, conics, trig curves, points and vectors on a grid.
 - **Analysis** for every equation:

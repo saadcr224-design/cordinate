@@ -128,3 +128,17 @@ def test_equations_without_variables(text):
     with pytest.raises(ValueError):
         analyse_3d(parse_line(text))
 
+
+
+def test_3d_view_has_y_up_and_labelled_axes():
+    fig = figure_3d([("A", parse_line("A(1, 2, 3)"))], 10)
+    camera = fig.layout.scene.camera
+    assert (camera.up.x, camera.up.y, camera.up.z) == (0, 1, 0)  # Y points up, as in the 2D view
+    assert camera.projection.type == "orthographic"
+    texts = {t for trace in fig.data if trace.text for t in trace.text}
+    assert {"<b>+X</b>", "<b>+Y</b>", "<b>+Z</b>"} <= texts
+
+
+def test_2d_view_labels_positive_axes():
+    fig = figure_2d([("A", parse_line("A(1, 2)"))], 8)
+    assert {"<b>+X</b>", "<b>+Y</b>"} <= {a.text for a in fig.layout.annotations}
